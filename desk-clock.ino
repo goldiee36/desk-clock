@@ -9,12 +9,12 @@ U8GLIB_SSD1306_128X64 u8g(U8G_I2C_OPT_NO_ACK);
 
 //digital pins
 #define buttonPin1 2 //interrupt 0, input, ardu pullup needed
-#define beeperPin 3 //pwm, LOW on, HIGH off
+#define beeperPin 6 //pwm, LOW on, HIGH off
 #define dhtPin 4
   #define DHTTYPE DHT22
   DHT dht(dhtPin, DHTTYPE);
 #define buttonPin3 5 //input, ardu pullup needed
-#define buttonPin2 6 //inpuy, ardu pullup needed
+#define buttonPin2 3 //interrupt 1, input, ardu pullup needed
 #define enableOledPin 8 //LOW on, HIGH off
 #define enableClockPin 9 //LOW on, HIGH off -- it seems that clock and oled have to be switched on/off in the same time because oled is not working with powered off clock module. i2c probably interfered by the clock module. I didnt try the clock without the oled. Pullups on i2c lines may solves the problem, I didnt test.
 #define LEDPIN 13
@@ -48,7 +48,8 @@ void setup() {
   Serial.begin(9600);
 
   //button1 interrupt handler
-  attachInterrupt(buttonPin1-2, wakeUp, FALLING); //2-2 = 0 means digital pin 2
+  attachInterrupt(buttonPin1-2, button1Interrupt, FALLING); //2-2 = 0 means digital pin 2
+  attachInterrupt(buttonPin2-2, button2Interrupt, FALLING); //3-2 = 1 means digital pin 3
 
 }
 
@@ -61,6 +62,9 @@ float temper = 0;
 float humid = 0;
 #define DHTWAIT 10000 //in milliseconds
 unsigned long dhtMillis = millis() - DHTWAIT;
+
+#define CLOCKWAIT 10000 //in milliseconds
+unsigned long clockMillis = millis() - CLOCKWAIT;
 
 boolean needRefresh = true;
 #define REFRESHWAIT 1000 //in milliseconds
@@ -90,10 +94,18 @@ void loop() {
 
   if ((millis() - dhtMillis) >= DHTWAIT) {
     dhtMillis = millis();
-    if (dht.read()) {
+    if (dht.read()) { //read success
       humid = dht.getHumidity();
       temper = dht.getTemperature();
     }
+  }
+
+  if ((millis() - clockMillis) >= CLOCKWAIT) {
+    clockMillis = millis();
+    setSyncProvider(RTC.get); //get the time from the RTC
+    if(timeStatus() == timeSet) { //read success
+      
+    }   
   }
 
   if ((millis() - refreshMillis) >= 1000) {
@@ -106,7 +118,7 @@ void loop() {
     LowPower.powerDown(SLEEP_FOREVER, ADC_OFF, BOD_OFF);
     digitalWrite(enableOledPin, LOW);
     digitalWrite(enableClockPin, LOW);
-    u8g.begin();
+    u8g.begin(); //this one needed after power off/on the oled, and an updatedisplay in addition
     //UpdateDisplay();
     sleepMillis = millis();
   }
@@ -120,7 +132,13 @@ void loop() {
 }
 
 //called by the digital pin 2 interrupt on FALLING edge
-void wakeUp()
+void button1Interrupt()
+{
+  
+}
+
+//called by the digital pin 3 interrupt on FALLING edge
+void button2Interrupt()
 {
   
 }
@@ -144,6 +162,13 @@ void drawScreen(void) {
   //else
     u8g.setPrintPos(0, 35);
   u8g.print(volta, 3);  
+
+  u8g.setFont(u8g_font_helvB18r);
+  char displayStr2[3] = "01";
+  char displayStr3[4] = "012";
+  Serial.println(u8g.getStrWidth(displayStr2));
+  Serial.println(u8g.getStrWidth(displayStr3));
+  Serial.println("//");
   
   
   // km/h label
