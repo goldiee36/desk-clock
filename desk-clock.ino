@@ -109,16 +109,17 @@ void loop() {
   }
 
   if ((millis() - refreshMillis) >= 1000) {
+    refreshMillis = millis();
     UpdateDisplay();
   }
 
-  if ((millis() - sleepMillis) >= 5000) {
-    digitalWrite(enableOledPin, HIGH);
+  if ((millis() - sleepMillis) >= 15000) {
+    //digitalWrite(enableOledPin, HIGH);
     digitalWrite(enableClockPin, HIGH);
     LowPower.powerDown(SLEEP_FOREVER, ADC_OFF, BOD_OFF);
-    digitalWrite(enableOledPin, LOW);
+    //digitalWrite(enableOledPin, LOW);
     digitalWrite(enableClockPin, LOW);
-    u8g.begin(); //this one needed after power off/on the oled, and an updatedisplay in addition
+    //u8g.begin(); //this one needed after power off/on the oled, and an updatedisplay in addition
     //UpdateDisplay();
     sleepMillis = millis();
   }
@@ -156,18 +157,32 @@ void drawScreen(void) {
   //speedo numbers if using u8g_font_osb35n then 1 number is 28 p wide
   //the dot is 14 p wide, so 1.2 = 70p 12.3 = 98p
   
-  u8g.setFont(u8g_font_osb35n);
+  u8g.setFont(u8g_font_timR18r);
   //if (volta < 9.95)
   //  u8g.setPrintPos(28, 35);
   //else
-    u8g.setPrintPos(0, 35);
+    u8g.setPrintPos(0, 18);
   u8g.print(volta, 3);  
 
-  u8g.setFont(u8g_font_helvB18r);
-  char displayStr2[3] = "01";
-  char displayStr3[4] = "012";
-  Serial.println(u8g.getStrWidth(displayStr2));
-  Serial.println(u8g.getStrWidth(displayStr3));
+  /*u8g.setFont(u8g_font_timR18r);
+  u8g.setPrintPos(0, 41);
+  u8g.print(volta, 2);
+  u8g.setFont(u8g_font_timR18r);
+  u8g.setPrintPos(0, 64);
+  u8g.print(volta, 2);
+
+  u8g.setPrintPos(64, 18);
+  u8g.print(volta, 2); 
+  u8g.setPrintPos(64, 41);
+  u8g.print(volta, 2); 
+  u8g.setPrintPos(64, 64);
+  u8g.print(volta, 2); */
+
+  u8g.setFont(u8g_font_timR18r);
+  char displayStr4[6] = "012.3";
+  char displayStr5[6] = "01234";
+  Serial.println(u8g.getStrWidth(displayStr4));
+  Serial.println(u8g.getStrWidth(displayStr5));
   Serial.println("//");
   
   
@@ -183,7 +198,8 @@ void drawScreen(void) {
   
   //daily counters  
   u8g.setFont(u8g_font_helvB18r);
-  // 13p per number (12p + 1 spaceing), 6p per space
+  //u8g_font_helvB18r 13p per number (12p + 1 spaceing), 6p per space
+  //u8g_font_timR18r 12p per number (11p + 1 spaceing), dot is 6p wide --> 3 number, 1 dot, 20p unitofmeas: 62 + 4 pixel space
   char displayStr[5];
   dtostrf(dailyKm, 4, 1, displayStr);
   byte xPosOffset = 0;
@@ -220,6 +236,9 @@ void blink2() {
 /*measurements:
 3.962 on the display, with big numbers --> 17 mA
 same with arduino powered off --> 11 mA
+3.962 on the display, with small numbers --> 9 mA
+same with arduino powered off --> 4 mA
+same with arduino and clock powered off --> 3.3 mA
 powered off ardu and display --> 11uA
 */
 
