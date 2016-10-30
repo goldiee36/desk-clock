@@ -1,0 +1,21 @@
+.HW Components
+* Arduino Pro Mini clone 3V3 8Mhz -> remove voltage regulator and power led
+* 128x64 monochrome OLED display
+* DS3231 real time clock chip based module
+* 14500 3.7V lithium battery
+* a micro USB lithium battery charger module, resistor changed to 3R6
+* three tacticle push button
+* DHT22 temperature/humidity sensor
+* piezo beeper
+
+.HW wiring
+* arduino vcc and gnd to battery
+* DS3231 vcc to battery, gnd to D9
+* OLED vcc to battery, gnd to D8
+* DHT22 vcc and gnd to battery, data to D4
+* buttons to gnd and D7, D6, D5
+* beeper vcc to battery, gnd to D3
+* charger to battery
+
+.Features
+* customizable multi information display
