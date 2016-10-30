@@ -24,13 +24,7 @@ U8GLIB_SSD1306_128X64 u8g(U8G_I2C_OPT_NO_ACK);
 #define VCORR 3.5/3.5;
 const float VccCorrection = VCORR; //todo why float
 Vcc vcc(VccCorrection);
-byte lowVoltageCounter = 0;
 
-float temper = 0;
-float humid = 0;
-float volta = 0;
-
-boolean needRefresh = true;
 
 void setup() {
   pinMode(buttonPin1, INPUT_PULLUP);
@@ -58,33 +52,54 @@ void setup() {
 
 }
 
+byte lowVoltageCounter = 0;
+float volta = 0;
+#define VOLTAWAIT 5000 //in milliseconds
+unsigned long voltaMillis = millis() - VOLTAWAIT;
+
+float temper = 0;
+float humid = 0;
+#define DHTWAIT 10000 //in milliseconds
+unsigned long dhtMillis = millis() - DHTWAIT;
+
+boolean needRefresh = true;
+#define REFRESHWAIT 1000 //in milliseconds
+unsigned long refreshMillis = millis() - REFRESHWAIT;
+
+unsigned long sleepMillis = millis();
+
 void loop() {
   //low voltage detection
-  volta = vcc.Read_Volts();
-  
-  /*
-  if (volta < 3.5 ) { 
-    lowVoltageCounter = lowVoltageCounter < 250 ? lowVoltageCounter + 1 : lowVoltageCounter; //only increase the counter if value less then 250
-    if (lowVoltageCounter > 3 || v.myFloat < 3 ) { //we need three measurement under 3.5 V OR one measurement under 3V to shut down
-      blink2(); //two fast blink as low voltage   //todu to change OLED warning
-      LowPower.powerDown(SLEEP_FOREVER, ADC_OFF, BOD_OFF); //low voltage lithium battery protection --> interrupt button will wake up and continue from here
+  if ((millis() - voltaMillis) >= VOLTAWAIT) {
+    voltaMillis = millis();
+    volta = vcc.Read_Volts();
+    
+    if (volta < 3.5 ) {
+      lowVoltageCounter = lowVoltageCounter < 250 ? lowVoltageCounter + 1 : lowVoltageCounter; //only increase the counter if value less then 250
+      if (lowVoltageCounter > 3 || volta < 3 ) { //we need three measurement under 3.5 V OR one measurement under 3V to shut down
+        blink2(); //two fast blink as low voltage   //todu to change OLED warning
+        LowPower.powerDown(SLEEP_FOREVER, ADC_OFF, BOD_OFF); //low voltage lithium battery protection --> interrupt button will wake up and continue from here
+        voltaMillis = millis() - VOLTAWAIT; //interrupt button pushed, new voltage measurement needed if battery is charged or not
+      }
+    }
+    else {
+      lowVoltageCounter = 0;
     }
   }
-  else {
-    lowVoltageCounter = 0;
-  }*/
   //-----low voltage detection 
 
-  
-  /*if (dht.read()) {
-    humid = dht.getHumidity();
-    temper = dht.getTemperature();
-  }*/
+  if ((millis() - dhtMillis) >= DHTWAIT) {
+    dhtMillis = millis();
+    if (dht.read()) {
+      humid = dht.getHumidity();
+      temper = dht.getTemperature();
+    }
+  }
 
-  UpdateDisplay();
-  blink2();
+  if ((millis() - sleepMillis) >= 12000) {
+    LowPower.powerDown(SLEEP_FOREVER, ADC_OFF, BOD_OFF);
+  }
 
-  delay(5000);
 
   /*if (needRefresh) {
     needRefresh = false;
