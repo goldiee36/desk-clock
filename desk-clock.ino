@@ -53,6 +53,8 @@ void setup() {
 
 }
 
+boolean oledOFF = false;
+
 byte lowVoltageCounter = 0;
 float volta = 0;
 #define VOLTAWAIT 5000 //in milliseconds
@@ -66,15 +68,20 @@ unsigned long dhtMillis = millis() - DHTWAIT;
 #define CLOCKWAIT 10000 //in milliseconds
 unsigned long clockMillis = millis() - CLOCKWAIT;
 
-boolean needRefresh = true;
 #define REFRESHWAIT 1000 //in milliseconds
 unsigned long refreshMillis = millis() - REFRESHWAIT;
 
 volatile unsigned long sleepMillis = millis();
 
+volatile boolean noMoreSleep = false;
+volatile boolean buttonPushed = false;
+
+#define DEBOUNCEWAIT 100 //in milliseconds
+volatile unsigned long debounceMillis = millis() - DEBOUNCEWAIT;
+
 void loop() {
   //low voltage detection
-  if ((millis() - voltaMillis) >= VOLTAWAIT) {
+  //if ((millis() - voltaMillis) >= VOLTAWAIT) {
     voltaMillis = millis();
     volta = vcc.Read_Volts();
     
@@ -89,59 +96,68 @@ void loop() {
     else {
       lowVoltageCounter = 0;
     }
-  }
+  //}
   //-----low voltage detection 
 
-  if ((millis() - dhtMillis) >= DHTWAIT) {
+
+  //if ((millis() - dhtMillis) >= DHTWAIT) {
     dhtMillis = millis();
     if (dht.read()) { //read success
       humid = dht.getHumidity();
       temper = dht.getTemperature();
     }
-  }
+  //}
 
-  if ((millis() - clockMillis) >= CLOCKWAIT) {
+
+  /*if ((millis() - clockMillis) >= CLOCKWAIT) {
     clockMillis = millis();
     setSyncProvider(RTC.get); //get the time from the RTC
     if(timeStatus() == timeSet) { //read success
       
     }   
-  }
+  }*/
 
-  if ((millis() - refreshMillis) >= 1000) {
+
+  //if ((millis() - refreshMillis) >= 1000) {
     refreshMillis = millis();
     UpdateDisplay();
-  }
+  //}
 
-  if ((millis() - sleepMillis) >= 15000) {
+
+  //if ((millis() - sleepMillis) >= 15000) { //when nobody is pushing buttons anymore (menu timeout). We want to come back here after the sleep for loop, if nobody pushed interrupt buttons, this is why sleepmillis is not set to millis() here
     //digitalWrite(enableOledPin, HIGH);
     digitalWrite(enableClockPin, HIGH);
-    LowPower.powerDown(SLEEP_FOREVER, ADC_OFF, BOD_OFF);
+    for (int i = 1; i <= 3; i++) {
+      noMoreSleep = false;
+      LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);
+      if (noMoreSleep) break; //interrupts will set this to true to prevent sleeping back in this for loop
+    }
     //digitalWrite(enableOledPin, LOW);
     digitalWrite(enableClockPin, LOW);
+    if (buttonPushed) {
+      delay(2000);
+      buttonPushed = false;
+    }
     //u8g.begin(); //this one needed after power off/on the oled, and an updatedisplay in addition
     //UpdateDisplay();
-    sleepMillis = millis();
-  }
-
-
-  /*if (needRefresh) {
-    needRefresh = false;
-    //Serial.println(countedMagnets); //for detecting rpm bounce
-    UpdateDisplay();
-  }*/
+  //}
 }
 
 //called by the digital pin 2 interrupt on FALLING edge
 void button1Interrupt()
 {
-  
+  buttonPushed = true;
+  /*if ((millis() - debounceMillis) >= DEBOUNCEWAIT) {
+    debounceMillis = millis();
+    noMoreSleep = true; //get out of the main sleep loop
+    sleepMillis = millis(); //not get into the sleep if
+  }*/
 }
 
 //called by the digital pin 3 interrupt on FALLING edge
 void button2Interrupt()
 {
-  
+  buttonPushed = true;
 }
 
 void UpdateDisplay() {
@@ -158,11 +174,18 @@ void drawScreen(void) {
   //the dot is 14 p wide, so 1.2 = 70p 12.3 = 98p
   
   u8g.setFont(u8g_font_timR18r);
-  //if (volta < 9.95)
-  //  u8g.setPrintPos(28, 35);
-  //else
+  if (temper < 9.95)
+    u8g.setPrintPos(12, 18);
+  else
     u8g.setPrintPos(0, 18);
-  u8g.print(volta, 3);  
+  u8g.print(temper, 2);
+
+  u8g.setFont(u8g_font_timR18r);
+  if (humid < 9.95)
+    u8g.setPrintPos(76, 64);
+  else
+    u8g.setPrintPos(64, 64);
+  u8g.print(humid, 2);
 
   /*u8g.setFont(u8g_font_timR18r);
   u8g.setPrintPos(0, 41);
@@ -177,13 +200,6 @@ void drawScreen(void) {
   u8g.print(volta, 2); 
   u8g.setPrintPos(64, 64);
   u8g.print(volta, 2); */
-
-  u8g.setFont(u8g_font_timR18r);
-  char displayStr4[6] = "012.3";
-  char displayStr5[6] = "01234";
-  Serial.println(u8g.getStrWidth(displayStr4));
-  Serial.println(u8g.getStrWidth(displayStr5));
-  Serial.println("//");
   
   
   // km/h label
