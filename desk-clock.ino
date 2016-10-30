@@ -75,6 +75,7 @@ volatile unsigned long sleepMillis = millis();
 
 volatile boolean noMoreSleep = false;
 volatile boolean buttonPushed = false;
+volatile boolean needVolta = true;
 
 #define DEBOUNCEWAIT 100 //in milliseconds
 volatile unsigned long debounceMillis = millis() - DEBOUNCEWAIT;
@@ -83,13 +84,23 @@ void loop() {
   //low voltage detection
   //if ((millis() - voltaMillis) >= VOLTAWAIT) {
     voltaMillis = millis();
+    delay(10); //needed because of the voltage meas
     volta = vcc.Read_Volts();
-    
+
     if (volta < 3.5 ) {
+      needVolta=true;
       lowVoltageCounter = lowVoltageCounter < 250 ? lowVoltageCounter + 1 : lowVoltageCounter; //only increase the counter if value less then 250
       if (lowVoltageCounter > 3 || volta < 3 ) { //we need three measurement under 3.5 V OR one measurement under 3V to shut down
         blink2(); //two fast blink as low voltage   //todu to change OLED warning
+        UpdateDisplay();
+        needVolta=false;
+        delay(5000);
+        digitalWrite(enableOledPin, HIGH);
+        digitalWrite(enableClockPin, HIGH);
         LowPower.powerDown(SLEEP_FOREVER, ADC_OFF, BOD_OFF); //low voltage lithium battery protection --> interrupt button will wake up and continue from here
+        digitalWrite(enableOledPin, LOW);
+        digitalWrite(enableClockPin, LOW);
+        u8g.begin();
         voltaMillis = millis() - VOLTAWAIT; //interrupt button pushed, new voltage measurement needed if battery is charged or not
       }
     }
@@ -121,13 +132,14 @@ void loop() {
   //if ((millis() - refreshMillis) >= 1000) {
     refreshMillis = millis();
     UpdateDisplay();
+    needVolta=false;
   //}
 
 
   //if ((millis() - sleepMillis) >= 15000) { //when nobody is pushing buttons anymore (menu timeout). We want to come back here after the sleep for loop, if nobody pushed interrupt buttons, this is why sleepmillis is not set to millis() here
     //digitalWrite(enableOledPin, HIGH);
     digitalWrite(enableClockPin, HIGH);
-    for (int i = 1; i <= 3; i++) {
+    for (int i = 1; i <= 1; i++) {
       noMoreSleep = false;
       LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);
       if (noMoreSleep) break; //interrupts will set this to true to prevent sleeping back in this for loop
@@ -158,6 +170,7 @@ void button1Interrupt()
 void button2Interrupt()
 {
   buttonPushed = true;
+  needVolta = true;
 }
 
 void UpdateDisplay() {
@@ -172,20 +185,33 @@ void UpdateDisplay() {
 void drawScreen(void) {
   //speedo numbers if using u8g_font_osb35n then 1 number is 28 p wide
   //the dot is 14 p wide, so 1.2 = 70p 12.3 = 98p
+  //u8g_font_timR18r 12p per number (11p + 1 spaceing), dot is 6p wide --> 3 number, 1 dot, 20p unitofmeas: 62 + 4 pixel space
   
   u8g.setFont(u8g_font_timR18r);
   if (temper < 9.95)
     u8g.setPrintPos(12, 18);
   else
     u8g.setPrintPos(0, 18);
-  u8g.print(temper, 2);
+  u8g.print(temper, 1);
 
   u8g.setFont(u8g_font_timR18r);
   if (humid < 9.95)
     u8g.setPrintPos(76, 64);
   else
     u8g.setPrintPos(64, 64);
-  u8g.print(humid, 2);
+  u8g.print(humid, 1);
+
+  u8g.setFont(u8g_font_timR10r);
+  u8g.setPrintPos(42, 18);
+  u8g.print("C*");
+  u8g.setPrintPos(108, 63);
+  u8g.print("%");
+
+  if (needVolta) {
+    u8g.setFont(u8g_font_timR18r);
+    u8g.setPrintPos(30, 41);
+    u8g.print(volta, 2);
+  }
 
   /*u8g.setFont(u8g_font_timR18r);
   u8g.setPrintPos(0, 41);
