@@ -2,7 +2,7 @@
 U8GLIB_SSD1306_128X64 u8g(U8G_I2C_OPT_NO_ACK);
 #include "LowPower.h"
 #include <DS3232RTC.h>
-#include <Time.h>
+#include <TimeLib.h>
 #include <Wire.h>
 #include "DHT.h" //Modified version of the library!! Original library uses millis/delay to ensure 2 seconds elapses between the measures - with power down it is not working
 #include <Vcc.h>
@@ -42,13 +42,15 @@ void setup() {
   pinMode(enableClockPin, OUTPUT);
   digitalWrite(beeperPin, HIGH);
   digitalWrite(enableOledPin, LOW);
-  digitalWrite(enableClockPin, HIGH);
+  digitalWrite(enableClockPin, LOW);
 
   //dht22
   dht.begin();
 
   //u8g
   u8g.begin(); 
+  u8g.setRot180();
+  
   Serial.begin(9600);
 
   //button1 interrupt handler
@@ -58,8 +60,8 @@ void setup() {
 
 void loop() {
   //low voltage detection
-  //volta = vcc.Read_Volts();
-  volta = 12.34;
+  volta = vcc.Read_Volts();
+  
   /*
   if (volta < 3.5 ) { 
     lowVoltageCounter = lowVoltageCounter < 250 ? lowVoltageCounter + 1 : lowVoltageCounter; //only increase the counter if value less then 250
@@ -80,6 +82,7 @@ void loop() {
   }*/
 
   UpdateDisplay();
+  blink2();
 
   delay(5000);
 
@@ -110,22 +113,22 @@ void drawScreen(void) {
   //the dot is 14 p wide, so 1.2 = 70p 12.3 = 98p
   
   u8g.setFont(u8g_font_osb35n);
-  if (volta < 9.95)
-    u8g.setPrintPos(28, 35);
-  else
+  //if (volta < 9.95)
+  //  u8g.setPrintPos(28, 35);
+  //else
     u8g.setPrintPos(0, 35);
-  u8g.print(volta, 1);  
+  u8g.print(volta, 3);  
   
   
   // km/h label
-  u8g.setFont(u8g_font_timB14r);
+  /*u8g.setFont(u8g_font_timB14r);
   u8g.setPrintPos(100, 15);
   u8g.print("km");
   u8g.drawHLine(100,17,25);
   u8g.setPrintPos(109, 33);
   u8g.print("h");
 
-  /*
+  
   
   //daily counters  
   u8g.setFont(u8g_font_helvB18r);
