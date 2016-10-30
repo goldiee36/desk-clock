@@ -16,7 +16,7 @@ U8GLIB_SSD1306_128X64 u8g(U8G_I2C_OPT_NO_ACK);
 #define buttonPin3 5 //input, ardu pullup needed
 #define buttonPin2 6 //inpuy, ardu pullup needed
 #define enableOledPin 8 //LOW on, HIGH off
-#define enableClockPin 9 //LOW on, HIGH off
+#define enableClockPin 9 //LOW on, HIGH off -- it seems that clock and oled have to be switched on/off in the same time because oled is not working with powered off clock module. i2c probably interfered by the clock module. I didnt try the clock without the oled. Pullups on i2c lines may solves the problem, I didnt test.
 #define LEDPIN 13
 
 //vcc livingRoom
@@ -66,7 +66,7 @@ boolean needRefresh = true;
 #define REFRESHWAIT 1000 //in milliseconds
 unsigned long refreshMillis = millis() - REFRESHWAIT;
 
-unsigned long sleepMillis = millis();
+volatile unsigned long sleepMillis = millis();
 
 void loop() {
   //low voltage detection
@@ -96,8 +96,19 @@ void loop() {
     }
   }
 
-  if ((millis() - sleepMillis) >= 12000) {
+  if ((millis() - refreshMillis) >= 1000) {
+    UpdateDisplay();
+  }
+
+  if ((millis() - sleepMillis) >= 5000) {
+    digitalWrite(enableOledPin, HIGH);
+    digitalWrite(enableClockPin, HIGH);
     LowPower.powerDown(SLEEP_FOREVER, ADC_OFF, BOD_OFF);
+    digitalWrite(enableOledPin, LOW);
+    digitalWrite(enableClockPin, LOW);
+    u8g.begin();
+    //UpdateDisplay();
+    sleepMillis = millis();
   }
 
 
@@ -111,7 +122,7 @@ void loop() {
 //called by the digital pin 2 interrupt on FALLING edge
 void wakeUp()
 {
-
+  
 }
 
 void UpdateDisplay() {
@@ -180,3 +191,10 @@ void blink2() {
   digitalWrite(LEDPIN, HIGH); LowPower.powerDown(SLEEP_30MS, ADC_OFF, BOD_OFF);
   digitalWrite(LEDPIN, LOW);
 }
+
+/*measurements:
+3.962 on the display, with big numbers --> 17 mA
+same with arduino powered off --> 11 mA
+powered off ardu and display --> 11uA
+*/
+
