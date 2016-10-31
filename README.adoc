@@ -13,8 +13,8 @@
 * DS3231 vcc to battery, gnd to D9
 * OLED vcc to battery, gnd to D8
 * DHT22 vcc and gnd to battery, data to D4
-* buttons to gnd and D7, D6, D5
-* beeper vcc to battery, gnd to D3
+* buttons to gnd and D2, D3, D5
+* beeper vcc to battery, gnd to D6
 * charger to battery
 
 .Features
