@@ -17,5 +17,14 @@
 * beeper vcc to battery, gnd to D6
 * charger to battery
 
-.Features
-* customizable multi information display
+.SW calibration
+* software have to be configured individually for each arduino, but only once
+* measure voltage with volt meter (eg. 3.93 V)
+* check voltage measured by the arduino by pushing the middle button (eg. 3.54 V)
+* change correction value in the arduino code: measured/reported: #define VCORR 3.93/3.54;
+
+.Features v0.1
+* screen always on
+* power off if the battery reading is below 3.5V (power on with the left or the middle button)
+* show battery voltage if you push the middle button
+* on time is more then 50 hours
