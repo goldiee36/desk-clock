@@ -1,7 +1,7 @@
 .HW Components
-* Arduino Pro Mini clone 3V3 8Mhz -> remove voltage regulator and power led
+* Arduino Pro Mini clone 3V3 8Mhz -> remove voltage regulator and power led, see picture
 * 128x64 monochrome OLED display
-* DS3231 real time clock chip based module
+* DS3231 real time clock chip based module -> remove charger resistor and power led, see picture
 * 14500 3.7V lithium battery
 * a micro USB lithium battery charger module, resistor changed to 3R6
 * three tacticle push button
