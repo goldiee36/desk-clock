@@ -29,3 +29,6 @@
 * show battery voltage if you push the middle button
 * on time is more then 50 hours
 
+.Comments
+* removing the resistor on the DS3231 clock module is needed if you use it with a CR non-rechargeable battery as I do
+* make sure you are using the included DHT library. Without that the temperature/humidity measurements will be slow, as the un-modded library is using millis() to measure time. If the un-modded library got a request within 2 seconds it sends back the last measurement without actually measuring anything. (DHT sensor measure interval is 2 seconds.) The problem is that with the power-off of the arduino the timers are not counting so millis() is measuring only the on-time, so the old library thinks that we are still in the 2 seconds window even if the arduino was sleeping for minutes. 
