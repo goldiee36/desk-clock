@@ -4,7 +4,7 @@
 * DS3231 real time clock chip based module -> remove charger resistor and power led, see picture
 * 14500 3.7V lithium battery
 * a micro USB lithium battery charger module, resistor changed to 3R6
-* three tacticle push button
+* three tactile push button
 * DHT22 temperature/humidity sensor
 * piezo beeper
 
@@ -25,6 +25,7 @@
 
 .Features v0.1
 * screen always on
-* power off if the battery reading is below 3.5V (power on with the left or the middle button)
+* power off automatically if the battery reading is below 3.5V (power on with the left or the middle button)
 * show battery voltage if you push the middle button
 * on time is more then 50 hours
+
