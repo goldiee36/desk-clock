@@ -26,6 +26,66 @@ const float VccCorrection = VCORR; //todo why float
 Vcc vcc(VccCorrection);
 
 
+
+
+
+//LOWVOTLAGE STUFF
+byte lowVoltageCounter = 0;
+float volta = 0;
+#define VOLTACHECKINTERVAL 60 //in seconds
+byte lastSleepCounterVolta = 1;
+
+//DHT STUFF
+float tempe = 0;
+float humid = 0;
+#define DHTCHECKINTERVAL 30 //in seconds
+byte lastSleepCounterDht = 1;
+
+//CLOCK MODULE STUFF
+byte secon = 0;
+byte minut = 0;
+
+//DEBOUNCE BUTTONS
+#define DEBOUNCEWAIT 100 //in milliseconds
+volatile unsigned long buttonPushedMillis = 0 - DEBOUNCEWAIT;
+volatile unsigned long button1PushedMillis = 0 - DEBOUNCEWAIT;
+volatile unsigned long button2PushedMillis = 0 - DEBOUNCEWAIT;
+
+//INTERRUPT DETECTION
+volatile boolean buttonInterrupt = false;
+
+//BUTTONS
+volatile boolean button1Pushed = false;
+volatile boolean button2Pushed = false;
+volatile boolean button3Pushed = false;
+volatile boolean needVolta = true;
+#define FAULTYBUTTONWAIT 8000 //in milliseconds
+#define LONGBUTTONWAIT 2000 //in milliseconds
+boolean longbutton = false;
+
+//SCREEN UPDATE BOOLEANS - current screen has to set it. If a value is true then the screen update part of the main loop will check the related variable for changes
+boolean tempeChange = true;
+boolean humidChange = true;
+boolean voltaChange = true;
+boolean minutChange = false;
+boolean seconChange = false;
+byte lastSecon = 99;
+float lastHumid = -99;
+float lastTempe = -99;
+byte lastMinut = 99;
+float lastVolta = -99;
+
+//SLEEP RELATED
+#define SLEEPTIME 2 //in seconds, in the main sleep section
+byte sleepCounter = 0;
+
+//MENU STUFF
+#define MENUTIMEOUT 15000 //in milliseconds //has to be bigger then FAULTYBUTTONWAIT
+boolean inMenu = false;
+
+
+
+
 void setup() {
   pinMode(buttonPin1, INPUT_PULLUP);
   pinMode(buttonPin2, INPUT_PULLUP);
@@ -53,71 +113,49 @@ void setup() {
 
 }
 
-boolean oledOFF = false;
-
-byte lowVoltageCounter = 0;
-float volta = 0;
-#define VOLTAWAIT 5000 //in milliseconds
-unsigned long voltaMillis = millis() - VOLTAWAIT;
-
-float temper = 0;
-float humid = 0;
-#define DHTWAIT 10000 //in milliseconds
-unsigned long dhtMillis = millis() - DHTWAIT;
-
-#define CLOCKWAIT 10000 //in milliseconds
-unsigned long clockMillis = millis() - CLOCKWAIT;
-
-#define REFRESHWAIT 1000 //in milliseconds
-unsigned long refreshMillis = millis() - REFRESHWAIT;
-
-volatile unsigned long sleepMillis = millis();
-
-volatile boolean noMoreSleep = false;
-volatile boolean buttonPushed = false;
-volatile boolean needVolta = true;
-
-#define DEBOUNCEWAIT 100 //in milliseconds
-volatile unsigned long debounceMillis = millis() - DEBOUNCEWAIT;
 
 void loop() {
-  //low voltage detection
-  //if ((millis() - voltaMillis) >= VOLTAWAIT) {
-    voltaMillis = millis();
-    delay(10); //needed because of the voltage meas
-    volta = vcc.Read_Volts();
-
-    if (volta < 3.5 ) {
-      needVolta=true;
-      lowVoltageCounter = lowVoltageCounter < 250 ? lowVoltageCounter + 1 : lowVoltageCounter; //only increase the counter if value less then 250
-      if (lowVoltageCounter > 3 || volta < 3 ) { //we need three measurement under 3.5 V OR one measurement under 3V to shut down
-        blink2(); //two fast blink as low voltage   //todu to change OLED warning
-        UpdateDisplay();
-        needVolta=false;
-        delay(5000);
-        digitalWrite(enableOledPin, HIGH);
-        digitalWrite(enableClockPin, HIGH);
-        LowPower.powerDown(SLEEP_FOREVER, ADC_OFF, BOD_OFF); //low voltage lithium battery protection --> interrupt button will wake up and continue from here
-        digitalWrite(enableOledPin, LOW);
-        digitalWrite(enableClockPin, LOW);
-        u8g.begin();
-        voltaMillis = millis() - VOLTAWAIT; //interrupt button pushed, new voltage measurement needed if battery is charged or not
+  if (sleepCounter - lastSleepCounterVolta >= VOLTACHECKINTERVAL / SLEEPTIME) {
+    lastSleepCounterVolta = sleepCounter;
+    while (true) {// while loop will be breaked if the voltage is OK. We need this while loop to remeasure voltage after shutdown/power on
+      delay(10); //needed because of the voltage meas
+      volta = vcc.Read_Volts();
+      Serial.println("reading volta");
+  
+      if (volta < 3.5 ) {
+        lowVoltageCounter = lowVoltageCounter < 250 ? lowVoltageCounter + 1 : lowVoltageCounter; //only increase the counter if value less then 250
+        if (lowVoltageCounter > 3 || volta < 3 ) { //we need three measurement under 3.5 V OR one measurement under 3V to shut down
+          blink2(); //two fast blink as low voltage   //todo to change OLED warning
+          delay(1000); //some time for the user to read the display, then shutdown. We need delay here and not sleep, because sleep is interruptable
+          digitalWrite(enableOledPin, HIGH);
+          digitalWrite(enableClockPin, HIGH);
+          LowPower.powerDown(SLEEP_FOREVER, ADC_OFF, BOD_OFF); //low voltage lithium battery protection --> interrupt button will wake up and continue from here
+          //someone pushed the button. exit from the while loop only if the voltage is above 3.5V
+          digitalWrite(enableOledPin, LOW);
+          digitalWrite(enableClockPin, LOW);
+          u8g.begin(); //back to the beginning of the while to re-measure the voltage
+        }
+        else {
+          break; //exit while
+        }
+      }
+      else {
+        lowVoltageCounter = 0;
+        break; //exit while
       }
     }
-    else {
-      lowVoltageCounter = 0;
-    }
-  //}
+  }
   //-----low voltage detection 
 
 
-  //if ((millis() - dhtMillis) >= DHTWAIT) {
-    dhtMillis = millis();
+  if (sleepCounter - lastSleepCounterDht >= DHTCHECKINTERVAL / SLEEPTIME) {
+    lastSleepCounterDht = sleepCounter;
     if (dht.read()) { //read success
       humid = dht.getHumidity();
-      temper = dht.getTemperature();
+      tempe = dht.getTemperature();
+      Serial.println("reading dht");
     }
-  //}
+  }
 
 
   /*if ((millis() - clockMillis) >= CLOCKWAIT) {
@@ -129,48 +167,169 @@ void loop() {
   }*/
 
 
-  //if ((millis() - refreshMillis) >= 1000) {
-    refreshMillis = millis();
+  if (
+    (!inMenu) && (
+      (seconChange && lastSecon != secon) ||
+      (humidChange && lastHumid != humid) ||
+      (tempeChange && lastTempe != tempe) ||
+      (minutChange && lastMinut != minut) ||
+      (voltaChange && lastVolta != volta)
+    )
+  )
+  {    
     UpdateDisplay();
-    needVolta=false;
-  //}
+    if (humidChange) lastSecon = secon;
+    else lastSecon = 99; //trigger the next update if screen changed
+    if (seconChange) lastHumid = humid;
+    else lastHumid = -99;
+    if (tempeChange) lastTempe = tempe;
+    else lastTempe = -99;
+    if (minutChange) lastMinut = minut;
+    else lastMinut = 99;
+    if (voltaChange) lastVolta = volta;
+    else lastVolta = -99;
+  }
 
 
-  //if ((millis() - sleepMillis) >= 15000) { //when nobody is pushing buttons anymore (menu timeout). We want to come back here after the sleep for loop, if nobody pushed interrupt buttons, this is why sleepmillis is not set to millis() here
-    //digitalWrite(enableOledPin, HIGH);
+
+  if ((millis() - buttonPushedMillis) >= MENUTIMEOUT) {
+    //we want to sleep as much as we can
+    //this code is needed to update the sleepCounter, which will trigger to update the temperature, time etc. values
+    inMenu = false; //this throw us out from the menu
     digitalWrite(enableClockPin, HIGH);
-    for (int i = 1; i <= 1; i++) {
-      noMoreSleep = false;
-      LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);
-      if (noMoreSleep) break; //interrupts will set this to true to prevent sleeping back in this for loop
-    }
-    //digitalWrite(enableOledPin, LOW);
+    LowPower.powerDown(SLEEP_2S, ADC_OFF, BOD_OFF);
     digitalWrite(enableClockPin, LOW);
-    if (buttonPushed) {
-      delay(2000);
-      buttonPushed = false;
+    if (buttonInterrupt) {//not to increase the sleepcounter because sleep may have been interrupted
+      buttonInterrupt = false;
     }
-    //u8g.begin(); //this one needed after power off/on the oled, and an updatedisplay in addition
-    //UpdateDisplay();
-  //}
-}
+    else {
+      sleepCounter++;
+    }
+  }
+  
+  if (inMenu) {
+    //we are in the menu!
+    
+  }
+  else if (button1Pushed || button2Pushed) { //button detection outside of the menu = standby, with oled on or off does not matter
+    if (digitalRead(buttonPin3) == LOW) { //we cannot detect button3 alone, just with together an interruptbutton (1 or 2)
+      button3Pushed = true;
+    }
+    if ((millis() - buttonPushedMillis) > DEBOUNCEWAIT) { //no action until debounce time elapsed, because we have to wait for the long button pushes (debouncing rising edge)
+      if (longbutton) { //here we have to go in until the user release all the buttons
+        if (digitalRead(buttonPin1) == HIGH && digitalRead(buttonPin2) == HIGH && digitalRead(buttonPin3) == HIGH) {
+          longbutton = false;
+          button1Pushed = false;
+          button2Pushed = false;
+          button3Pushed = false;
+          button1PushedMillis = millis(); //not accepting new commands for debounce time (debouncing the release of the button)
+          button2PushedMillis = millis();
+        }
+      }
+      else if ( //we need some actions but no action until all the buttons are released OR longbutton timeout runs out
+        (
+          digitalRead(buttonPin1) == HIGH &&
+          digitalRead(buttonPin2) == HIGH &&
+          digitalRead(buttonPin3) == HIGH
+        ) ||
+        ( (millis() - buttonPushedMillis) > LONGBUTTONWAIT )
+      ) { // ACTION!
+        if ( (millis() - buttonPushedMillis) > LONGBUTTONWAIT ) longbutton = true; //we have to watch the button release debounce to not to trigger button push again, as the user release the button(s) after the action executed
+        else { //buttons released so we can clear these booleans
+          longbutton = false;
+          button1Pushed = false;
+          button2Pushed = false;
+          button3Pushed = false;
+          button1PushedMillis = millis(); //not accepting new commands for debounce time (debouncing the release of the button)
+          button2PushedMillis = millis();
+        }
+
+        if (button1Pushed) {
+          if (button2Pushed) {
+            if (button3Pushed) { // all 3 button pushed
+              if (longbutton) { // LONG
+                Serial.println("all long");
+              }
+              else { // SHORT
+                Serial.println("all short");
+              }
+            }
+            else { // button 1 and 2 pushed
+              if (longbutton) { // LONG
+                Serial.println("1 2 long");
+              }
+              else { // SHORT
+                Serial.println("1 2 short");
+              }
+            }
+          }
+          else {
+            if (button3Pushed) { // button 1 and 3 pushed
+              if (longbutton) { // LONG
+                Serial.println("1 3 long");
+              }
+              else { // SHORT
+                Serial.println("1 3 short");
+              }
+            }
+            else { // only 1 pushed
+              if (longbutton) { // LONG
+                Serial.println("1 long");
+              }
+              else { // SHORT
+                Serial.println("1 short");
+              }
+            }
+          }
+        }
+        else if (button2Pushed) {
+          if (button3Pushed) { // button 2 and 3 pushed
+            if (longbutton) { // LONG
+              Serial.println("2 3 long");
+            }
+            else { // SHORT
+              Serial.println("2 3 short");
+            }
+          }
+          else { // only 2 pushed
+            if (longbutton) { // LONG
+              Serial.println("2 long");
+            }
+            else { // SHORT
+              Serial.println("2 short");
+            }
+          }
+        } //ACTION ENDS
+      }
+    }
+  }  
+
+
+
+  
+} //end of main loop
 
 //called by the digital pin 2 interrupt on FALLING edge
 void button1Interrupt()
 {
-  buttonPushed = true;
-  /*if ((millis() - debounceMillis) >= DEBOUNCEWAIT) {
-    debounceMillis = millis();
-    noMoreSleep = true; //get out of the main sleep loop
-    sleepMillis = millis(); //not get into the sleep if
-  }*/
+  if ((millis() - button1PushedMillis) >= DEBOUNCEWAIT) { //debouncing falling edge
+    button1Pushed = true;
+  }
+  button1PushedMillis = millis();
+  buttonPushedMillis = millis();
+  buttonInterrupt = true;
 }
 
 //called by the digital pin 3 interrupt on FALLING edge
 void button2Interrupt()
 {
-  buttonPushed = true;
-  needVolta = true;
+  if ((millis() - button1PushedMillis) >= DEBOUNCEWAIT) {
+    button2Pushed = true;
+    needVolta = true;
+  }
+  button2PushedMillis = millis();
+  buttonPushedMillis = millis();
+  buttonInterrupt = true;
 }
 
 void UpdateDisplay() {
@@ -180,6 +339,8 @@ void UpdateDisplay() {
     drawScreen();
   }
   while(u8g.nextPage());
+  needVolta = false;
+  Serial.println("display updated");
 }
 
 byte getXbyPosi(byte posi, boolean shortNumber) {
@@ -263,7 +424,9 @@ void drawScreen(void) {
 
 
   
+
   drawFloat(1, temper, 1, 1);
+
 
   drawFloat(9, humid, 1, 1);
 
