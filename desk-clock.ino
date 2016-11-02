@@ -32,22 +32,26 @@ Vcc vcc(VccCorrection);
 //LOWVOTLAGE STUFF
 byte lowVoltageCounter = 0;
 float volta = 0;
-#define VOLTACHECKINTERVAL 60 //in seconds
+#define VOLTACHECKINTERVAL 14 //in seconds
 byte lastSleepCounterVolta = 1;
 
 //DHT STUFF
 float tempe = 0;
 float humid = 0;
-#define DHTCHECKINTERVAL 30 //in seconds
+#define DHTCHECKINTERVAL 12 //in seconds
 byte lastSleepCounterDht = 1;
 
 //CLOCK MODULE STUFF
 byte secon = 0;
 byte minut = 0;
 
+//MENU STUFF
+#define MENUTIMEOUT 5000 //in milliseconds //has to be bigger then FAULTYBUTTONWAIT
+boolean inMenu = false;
+
 //DEBOUNCE BUTTONS
 #define DEBOUNCEWAIT 100 //in milliseconds
-volatile unsigned long buttonPushedMillis = 0 - DEBOUNCEWAIT;
+volatile unsigned long buttonPushedMillis = 0 - MENUTIMEOUT;
 volatile unsigned long button1PushedMillis = 0 - DEBOUNCEWAIT;
 volatile unsigned long button2PushedMillis = 0 - DEBOUNCEWAIT;
 
@@ -79,10 +83,6 @@ float lastVolta = -99;
 #define SLEEPTIME 2 //in seconds, in the main sleep section
 byte sleepCounter = 0;
 
-//MENU STUFF
-#define MENUTIMEOUT 15000 //in milliseconds //has to be bigger then FAULTYBUTTONWAIT
-boolean inMenu = false;
-
 
 
 
@@ -105,7 +105,7 @@ void setup() {
   u8g.begin(); 
   u8g.setRot180();
   
-  Serial.begin(9600);
+  Serial.begin(57600);
 
   //button1 interrupt handler
   attachInterrupt(buttonPin1-2, button1Interrupt, FALLING); //2-2 = 0 means digital pin 2
@@ -115,12 +115,12 @@ void setup() {
 
 
 void loop() {
-  if (sleepCounter - lastSleepCounterVolta >= VOLTACHECKINTERVAL / SLEEPTIME) {
+  if ((byte)(sleepCounter - lastSleepCounterVolta) >= VOLTACHECKINTERVAL / SLEEPTIME) {
     lastSleepCounterVolta = sleepCounter;
     while (true) {// while loop will be breaked if the voltage is OK. We need this while loop to remeasure voltage after shutdown/power on
       delay(10); //needed because of the voltage meas
       volta = vcc.Read_Volts();
-      Serial.println("reading volta");
+      Serial.print("reading volta "); Serial.println(volta); delay(10);
   
       if (volta < 3.5 ) {
         lowVoltageCounter = lowVoltageCounter < 250 ? lowVoltageCounter + 1 : lowVoltageCounter; //only increase the counter if value less then 250
@@ -148,12 +148,12 @@ void loop() {
   //-----low voltage detection 
 
 
-  if (sleepCounter - lastSleepCounterDht >= DHTCHECKINTERVAL / SLEEPTIME) {
+  if ((byte)(sleepCounter - lastSleepCounterDht) >= DHTCHECKINTERVAL / SLEEPTIME) {
     lastSleepCounterDht = sleepCounter;
     if (dht.read()) { //read success
       humid = dht.getHumidity();
       tempe = dht.getTemperature();
-      Serial.println("reading dht");
+      Serial.print("r dht "); Serial.print(tempe); Serial.print(" "); Serial.println(humid); delay(10);
     }
   }
 
@@ -178,9 +178,9 @@ void loop() {
   )
   {    
     UpdateDisplay();
-    if (humidChange) lastSecon = secon;
+    if (seconChange) lastSecon = secon;
     else lastSecon = 99; //trigger the next update if screen changed
-    if (seconChange) lastHumid = humid;
+    if (humidChange) lastHumid = humid;
     else lastHumid = -99;
     if (tempeChange) lastTempe = tempe;
     else lastTempe = -99;
@@ -204,6 +204,7 @@ void loop() {
     }
     else {
       sleepCounter++;
+      Serial.println(sleepCounter); delay(10);
     }
   }
   
@@ -216,8 +217,11 @@ void loop() {
       button3Pushed = true;
     }
     if ((millis() - buttonPushedMillis) > DEBOUNCEWAIT) { //no action until debounce time elapsed, because we have to wait for the long button pushes (debouncing rising edge)
+      Serial.println("cheking buttons"); delay(10);
       if (longbutton) { //here we have to go in until the user release all the buttons
+        Serial.println("waiting to release buttons"); delay(10);
         if (digitalRead(buttonPin1) == HIGH && digitalRead(buttonPin2) == HIGH && digitalRead(buttonPin3) == HIGH) {
+          Serial.println("all released"); delay(10);
           longbutton = false;
           button1Pushed = false;
           button2Pushed = false;
@@ -234,14 +238,14 @@ void loop() {
         ) ||
         ( (millis() - buttonPushedMillis) > LONGBUTTONWAIT )
       ) { // ACTION!
-        if ( (millis() - buttonPushedMillis) > LONGBUTTONWAIT ) longbutton = true; //we have to watch the button release debounce to not to trigger button push again, as the user release the button(s) after the action executed
+        Serial.println("ACTION"); delay(10);
+        if ( (millis() - buttonPushedMillis) > LONGBUTTONWAIT ) {
+          Serial.println("LONG"); delay(10);
+          longbutton = true; //we have to watch the button release debounce to not to trigger button push again, as the user release the button(s) after the action executed
+        }
         else { //buttons released so we can clear these booleans
-          longbutton = false;
-          button1Pushed = false;
-          button2Pushed = false;
-          button3Pushed = false;
-          button1PushedMillis = millis(); //not accepting new commands for debounce time (debouncing the release of the button)
-          button2PushedMillis = millis();
+          Serial.println("SHORT"); delay(10);
+          longbutton = false;          
         }
 
         if (button1Pushed) {
@@ -258,7 +262,7 @@ void loop() {
               if (longbutton) { // LONG
                 Serial.println("1 2 long");
               }
-              else { // SHORT
+              else { // SHORT //this one not so stable dont use :)
                 Serial.println("1 2 short");
               }
             }
@@ -299,7 +303,15 @@ void loop() {
               Serial.println("2 short");
             }
           }
-        } //ACTION ENDS
+        }
+        //ACTION ENDS
+        if (longbutton == false) { //if short clear booleans
+          button1Pushed = false;
+          button2Pushed = false;
+          button3Pushed = false;
+          button1PushedMillis = millis(); //not accepting new commands for debounce time (debouncing the release of the button)
+          button2PushedMillis = millis();
+        }
       }
     }
   }  
@@ -340,7 +352,7 @@ void UpdateDisplay() {
   }
   while(u8g.nextPage());
   needVolta = false;
-  Serial.println("display updated");
+  Serial.println("display updated"); delay(10);
 }
 
 byte getXbyPosi(byte posi, boolean shortNumber) {
@@ -425,7 +437,7 @@ void drawScreen(void) {
 
   
 
-  drawFloat(1, temper, 1, 1);
+  drawFloat(1, tempe, 1, 1);
 
 
   drawFloat(9, humid, 1, 1);
