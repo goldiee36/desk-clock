@@ -61,7 +61,7 @@ volatile boolean button3Pushed = false;
 volatile boolean needVolta = true;
 #define FAULTYBUTTONWAIT 8000 //in milliseconds
 #define LONGBUTTONWAIT 2000 //in milliseconds
-boolean longbutton;
+boolean longbutton = false;
 
 //SCREEN UPDATE BOOLEANS - current screen has to set it. If a value is true then the screen update part of the main loop will check the related variable for changes
 boolean tempeChange = true;
@@ -216,82 +216,90 @@ void loop() {
       button3Pushed = true;
     }
     if ((millis() - buttonPushedMillis) > DEBOUNCEWAIT) { //no action until debounce time elapsed, because we have to wait for the long button pushes (debouncing rising edge)
-      if ( //no action until all the detected buttons are released OR failty button timeout runs out
-      (button1Pushed && digitalRead(buttonPin1) == HIGH) ||
-      (button2Pushed && digitalRead(buttonPin2) == HIGH) ||
-      (button3Pushed && digitalRead(buttonPin3) == HIGH) ||
-      ((millis() - buttonPushedMillis) > FAULTYBUTTONWAIT)
-      ) { //button booleans will be cleared in the end of this section, as we want to enter here only once
-        if ( (millis() - buttonPushedMillis) > FAULTYBUTTONWAIT ) {
-          //do nothing
-          //todo print some faulty button message, maybe disable button
+      if (longbutton) { //here we have to go in until the user release all the buttons
+        if (digitalRead(buttonPin1) == HIGH && digitalRead(buttonPin2) == HIGH && digitalRead(buttonPin3) == HIGH) {
+          longbutton = false;
+          button1Pushed = false;
+          button2Pushed = false;
+          button3Pushed = false;
+          button1PushedMillis = millis(); //not accepting new commands for debounce time (debouncing the release of the button)
+          button2PushedMillis = millis();
         }
-        else { // ACTION!
-          if ( (millis() - buttonPushedMillis) > LONGBUTTONWAIT ) longbutton = true;
-          else longbutton = false;
+      }
+      else if ( //we need some actions but no action until all the buttons are released OR longbutton timeout runs out
+        (
+          digitalRead(buttonPin1) == HIGH &&
+          digitalRead(buttonPin2) == HIGH &&
+          digitalRead(buttonPin3) == HIGH
+        ) ||
+        ( (millis() - buttonPushedMillis) > LONGBUTTONWAIT )
+      ) { // ACTION!
+        if ( (millis() - buttonPushedMillis) > LONGBUTTONWAIT ) longbutton = true; //we have to watch the button release debounce to not to trigger button push again, as the user release the button(s) after the action executed
+        else { //buttons released so we can clear these booleans
+          longbutton = false;
+          button1Pushed = false;
+          button2Pushed = false;
+          button3Pushed = false;
+          button1PushedMillis = millis(); //not accepting new commands for debounce time (debouncing the release of the button)
+          button2PushedMillis = millis();
+        }
 
-          if (button1Pushed) {
-            if (button2Pushed) {
-              if (button3Pushed) { // all 3 button pushed
-                if (longbutton) { // LONG
-                  Serial.println("all long");
-                }
-                else { // SHORT
-                  Serial.println("all short");
-                }
+        if (button1Pushed) {
+          if (button2Pushed) {
+            if (button3Pushed) { // all 3 button pushed
+              if (longbutton) { // LONG
+                Serial.println("all long");
               }
-              else { // button 1 and 2 pushed
-                if (longbutton) { // LONG
-                  Serial.println("1 2 long");
-                }
-                else { // SHORT
-                  Serial.println("1 2 short");
-                }
+              else { // SHORT
+                Serial.println("all short");
               }
             }
-            else {
-              if (button3Pushed) { // button 1 and 3 pushed
-                if (longbutton) { // LONG
-                  Serial.println("1 3 long");
-                }
-                else { // SHORT
-                  Serial.println("1 3 short");
-                }
+            else { // button 1 and 2 pushed
+              if (longbutton) { // LONG
+                Serial.println("1 2 long");
               }
-              else { // only 1 pushed
-                if (longbutton) { // LONG
-                  Serial.println("1 long");
-                }
-                else { // SHORT
-                  Serial.println("1 short");
-                }
+              else { // SHORT
+                Serial.println("1 2 short");
               }
             }
           }
-          else if (button2Pushed) {
-            if (button3Pushed) { // button 2 and 3 pushed
+          else {
+            if (button3Pushed) { // button 1 and 3 pushed
               if (longbutton) { // LONG
-                Serial.println("2 3 long");
+                Serial.println("1 3 long");
               }
               else { // SHORT
-                Serial.println("2 3 short");
+                Serial.println("1 3 short");
               }
             }
-            else { // only 2 pushed
+            else { // only 1 pushed
               if (longbutton) { // LONG
-                Serial.println("2 long");
+                Serial.println("1 long");
               }
               else { // SHORT
-                Serial.println("2 short");
+                Serial.println("1 short");
               }
             }
           }
         }
-        button1Pushed = false;
-        button2Pushed = false;
-        button3Pushed = false;
-        button1PushedMillis = millis(); //not accepting new commands for debounce time (debouncing the release of the button)
-        button2PushedMillis = millis();
+        else if (button2Pushed) {
+          if (button3Pushed) { // button 2 and 3 pushed
+            if (longbutton) { // LONG
+              Serial.println("2 3 long");
+            }
+            else { // SHORT
+              Serial.println("2 3 short");
+            }
+          }
+          else { // only 2 pushed
+            if (longbutton) { // LONG
+              Serial.println("2 long");
+            }
+            else { // SHORT
+              Serial.println("2 short");
+            }
+          }
+        } //ACTION ENDS
       }
     }
   }  
