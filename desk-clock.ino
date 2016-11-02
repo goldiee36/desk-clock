@@ -355,31 +355,34 @@ void UpdateDisplay() {
   Serial.println("display updated"); delay(10);
 }
 
-byte getXbyPosi(byte posi, boolean shortNumber) {
+byte getXbyPosi(byte posi, boolean shortNumber, byte unitLength, boolean forUnit) {
+  byte returny = 0;
+  byte plusForUnit = 42;
   switch (posi) {
     case 1:
     case 4:
     case 7:
-      return shortNumber ? 12 : 0 ;
+      plusForUnit -= shortNumber ? 12 : 0 ; //full small char left
+      returny = 0;
       break;
     case 2:
     case 5:
     case 8:
-      return shortNumber ? 39 : 33 ;
+      plusForUnit -= shortNumber ? 6 : 0 ; //half small char left
+      returny = shortNumber ? 39 + ((20 - unitLength) / 2) : 33 + ((20 - unitLength) / 2) ; //half small char right
       break;
     case 3:
     case 6:
     case 9:
-      return 66;
+      returny = shortNumber ? 78 + (20 - unitLength) : 66 + (20 - unitLength) ; //full small char right
       break;
     case 11:
     case 12:
-      return shortNumber ? 14 : 0 ;
+      plusForUnit -= shortNumber ? 20 : 0 ; //half big char left
+      returny = shortNumber ? 14 + ((40 - unitLength) / 2) : 0 + ((40 - unitLength) / 2) ; //half big char right //todo big unit length is really 40?
       break;
-    default:
-      return 0;
-    break;
   }
+  return forUnit ? returny + plusForUnit : returny ;
 }
 
 byte getYbyPosi(byte posi) {
@@ -410,10 +413,47 @@ byte getYbyPosi(byte posi) {
 void drawFloat(byte posi, float value, byte res, byte unit) {
   // posi: 1-9 small blocks: 1-top-left, 2-top-center, 3-top-right, 4-middle-left etc. 11-12 big blocks: 11-top, 12-bottom
   // res: 1: 12.3 (temper, humid), 2: 1.23 (volta)
-  // unit: 1-C° (alt+0176), 2-F°, 3-%, 4-$, 5-€ (alt+0128) which is an equal and a ( or C
-  u8g.setFont(u8g_font_timR18r);
-  u8g.setPrintPos(getXbyPosi(posi, res == 1 && value < 9.95 && value >= 0), getYbyPosi(posi));
+  // unit: 1-C° (alt+0176), 2-F°, 3-%, 4-V, 5-$, 6-€ (alt+0128) which is an equal and a ( or C
+  byte unitLen = 0;
+  byte curXpos = 0;
+  
+  switch (unit) {
+    case 1: {
+      u8g.setFont(u8g_font_timR14);      
+      char unitstr[3] = "C ";
+      unitstr[1] = 176;
+      unitLen = 19; //getStrWidth(unitstr) is 20 but last pixel column is empty
+      u8g.setPrintPos(getXbyPosi(posi, res == 1 && value < 9.95 && value >= 0, unitLen, true), getYbyPosi(posi));    
+      u8g.print(unitstr);
+      }
+      break;
+    case 3: {
+      u8g.setFont(u8g_font_timR14);      
+      char unitstr[2] = "%";
+      unitLen = 14; //getStrWidth(unitstr) is 15 but last pixel column is empty
+      u8g.setPrintPos(getXbyPosi(posi, res == 1 && value < 9.95 && value >= 0, unitLen, true), getYbyPosi(posi));    
+      u8g.print(unitstr);
+      }
+      break;
+    case 4: {
+    u8g.setFont(u8g_font_timR14);      
+      char unitstr[2] = "V";
+      unitLen = 13; //getStrWidth(unitstr) is 14 but last pixel column is empty
+      u8g.setPrintPos(getXbyPosi(posi, res == 1 && value < 9.95 && value >= 0, unitLen, true), getYbyPosi(posi));    
+      u8g.print(unitstr);
+  
+      Serial.print("len "); Serial.println(u8g.getStrWidth(unitstr)); delay(10);
+      }
+      break;
+    default:
+    break;
+  }
+  
+  u8g.setFont(u8g_font_timR18r);  
+  u8g.setPrintPos(getXbyPosi(posi, res == 1 && value < 9.95 && value >= 0, unitLen, false), getYbyPosi(posi));
   u8g.print(value, res);
+
+  
 }
 
 void drawTime(byte posi, byte hours, byte minutes) {
@@ -433,23 +473,25 @@ void drawScreen(void) {
   //speedo numbers if using u8g_font_osb35n then 1 number is 28 p wide
   //the dot is 14 p wide, so 1.2 = 70p 12.3 = 98p
   //u8g_font_timR18r 12p per number (11p + 1 spaceing), dot is 6p wide --> 3 number, 1 dot, 20p unitofmeas: 62 + 4 pixel space + 62 = 128
-
-
+  //timR10 C: 10, C°: 16
+  //timR12 C: 11, C°: 18
+  //timR14 C: 13, C°: 20
+  //u8g_font_helvB18r 13p per number (12p + 1 spaceing), 6p per space
   
 
   drawFloat(1, tempe, 1, 1);
 
 
-  drawFloat(9, humid, 1, 1);
+  drawFloat(9, humid, 1, 3);
 
-  u8g.setFont(u8g_font_timR10r);
+  /*u8g.setFont(u8g_font_timR10r);
   u8g.setPrintPos(42, 18);
   u8g.print("C*");
   u8g.setPrintPos(108, 63);
-  u8g.print("%");
+  u8g.print("%");*/
 
   if (needVolta) {
-    drawFloat(5, volta, 2, 1);
+    drawFloat(5, volta, 2, 4);
   }
 
   /*u8g.setFont(u8g_font_timR18r);
