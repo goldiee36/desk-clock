@@ -5,8 +5,9 @@
 * 14500 3.7V lithium battery
 * a micro USB lithium battery charger module, resistor changed to 3R6
 * three tactile push button
-* DHT22 temperature/humidity sensor
+* DHT22 temperature/humidity sensor + 10k resistor between the Vcc and Data pins
 * piezo beeper
+* plastic case: http://www.thingiverse.com/thing:1860495
 
 .HW wiring
 * arduino vcc and gnd to battery

@@ -182,24 +182,90 @@ void UpdateDisplay() {
   while(u8g.nextPage());
 }
 
+byte getXbyPosi(byte posi, boolean shortNumber) {
+  switch (posi) {
+    case 1:
+    case 4:
+    case 7:
+      return shortNumber ? 12 : 0 ;
+      break;
+    case 2:
+    case 5:
+    case 8:
+      return shortNumber ? 39 : 33 ;
+      break;
+    case 3:
+    case 6:
+    case 9:
+      return 66;
+      break;
+    case 11:
+    case 12:
+      return shortNumber ? 14 : 0 ;
+      break;
+    default:
+      return 0;
+    break;
+  }
+}
+
+byte getYbyPosi(byte posi) {
+  switch (posi) {
+    case 1:
+    case 2:
+    case 3:
+      return 18;
+      break;
+    case 4:
+    case 5:
+    case 6:
+    case 11:
+      return 41;
+      break;
+    case 7:
+    case 8:
+    case 9:
+    case 12:
+      return 64;
+      break;
+    default:
+      return 41;
+    break;
+  }
+}
+
+void drawFloat(byte posi, float value, byte res, byte unit) {
+  // posi: 1-9 small blocks: 1-top-left, 2-top-center, 3-top-right, 4-middle-left etc. 11-12 big blocks: 11-top, 12-bottom
+  // res: 1: 12.3 (temper, humid), 2: 1.23 (volta)
+  // unit: 1-C° (alt+0176), 2-F°, 3-%, 4-$, 5-€ (alt+0128) which is an equal and a ( or C
+  u8g.setFont(u8g_font_timR18r);
+  u8g.setPrintPos(getXbyPosi(posi, res == 1 && value < 9.95 && value >= 0), getYbyPosi(posi));
+  u8g.print(value, res);
+}
+
+void drawTime(byte posi, byte hours, byte minutes) {
+  
+}
+
+void drawDate(byte posi, byte months, byte days, boolean dayfirst) {
+  
+}
+
+void drawWeekDay(byte posi, byte weeks, byte weekdays, boolean weekalso) {
+  //if weekalso true then show weeknumber and 2 letter weekdaycode, if false then only weekday, 2 letters big, rest is small
+  
+}
+
 void drawScreen(void) {
   //speedo numbers if using u8g_font_osb35n then 1 number is 28 p wide
   //the dot is 14 p wide, so 1.2 = 70p 12.3 = 98p
-  //u8g_font_timR18r 12p per number (11p + 1 spaceing), dot is 6p wide --> 3 number, 1 dot, 20p unitofmeas: 62 + 4 pixel space
-  
-  u8g.setFont(u8g_font_timR18r);
-  if (temper < 9.95)
-    u8g.setPrintPos(12, 18);
-  else
-    u8g.setPrintPos(0, 18);
-  u8g.print(temper, 1);
+  //u8g_font_timR18r 12p per number (11p + 1 spaceing), dot is 6p wide --> 3 number, 1 dot, 20p unitofmeas: 62 + 4 pixel space + 62 = 128
 
-  u8g.setFont(u8g_font_timR18r);
-  if (humid < 9.95)
-    u8g.setPrintPos(76, 64);
-  else
-    u8g.setPrintPos(64, 64);
-  u8g.print(humid, 1);
+
+  
+  drawFloat(1, temper, 1, 1);
+
+  drawFloat(9, humid, 1, 1);
 
   u8g.setFont(u8g_font_timR10r);
   u8g.setPrintPos(42, 18);
@@ -208,9 +274,7 @@ void drawScreen(void) {
   u8g.print("%");
 
   if (needVolta) {
-    u8g.setFont(u8g_font_timR18r);
-    u8g.setPrintPos(30, 41);
-    u8g.print(volta, 2);
+    drawFloat(5, volta, 2, 1);
   }
 
   /*u8g.setFont(u8g_font_timR18r);
