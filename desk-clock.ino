@@ -84,11 +84,11 @@ byte sleepCounter = 0;
 
 //SCREENS
 byte numberOfScreens = 3;
-byte currentScreen = 1;
+byte currentScreen = 2; //starts from 0
 byte scProps[3][12] = {
   {1, 1, 2, 9, 0, 0, 0, 0, 0, 0, 0, 0},
   {3, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-  {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 5}
+  {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 4}
 };
 
 
@@ -118,6 +118,7 @@ void setup() {
   attachInterrupt(buttonPin1-2, button1Interrupt, FALLING); //2-2 = 0 means digital pin 2
   attachInterrupt(buttonPin2-2, button2Interrupt, FALLING); //3-2 = 1 means digital pin 3
 
+  nextScreen();
 }
 
 
@@ -127,7 +128,7 @@ void loop() {
     while (true) {// while loop will be breaked if the voltage is OK. We need this while loop to remeasure voltage after shutdown/power on
       delay(10); //needed because of the voltage meas
       volta = vcc.Read_Volts();
-      Serial.print("reading volta "); Serial.println(volta); delay(10);
+      //Serial.print("reading volta "); Serial.println(volta); delay(10);
   
       if (volta < 3.5 ) {
         lowVoltageCounter = lowVoltageCounter < 250 ? lowVoltageCounter + 1 : lowVoltageCounter; //only increase the counter if value less then 250
@@ -160,7 +161,7 @@ void loop() {
     if (dht.read()) { //read success
       humid = dht.getHumidity();
       tempe = dht.getTemperature();
-      Serial.print("r dht "); Serial.print(tempe); Serial.print(" "); Serial.println(humid); delay(10);
+      //Serial.print("r dht "); Serial.print(tempe); Serial.print(" "); Serial.println(humid); delay(10);
     }
   }
 
@@ -211,7 +212,7 @@ void loop() {
     }
     else {
       sleepCounter++;
-      Serial.println(sleepCounter); delay(10);
+      //Serial.println(sleepCounter); delay(10);
     }
   }
   
@@ -224,11 +225,11 @@ void loop() {
       button3Pushed = true;
     }
     if ((millis() - buttonPushedMillis) > DEBOUNCEWAIT) { //no action until debounce time elapsed, because we have to wait for the long button pushes (debouncing rising edge)
-      Serial.println("cheking buttons"); delay(10);
+      //Serial.println("cheking buttons"); delay(10);
       if (longbutton) { //here we have to go in until the user release all the buttons
-        Serial.println("waiting to release buttons"); delay(10);
+        //Serial.println("waiting to release buttons"); delay(10);
         if (digitalRead(buttonPin1) == HIGH && digitalRead(buttonPin2) == HIGH && digitalRead(buttonPin3) == HIGH) {
-          Serial.println("all released"); delay(10);
+          //Serial.println("all released"); delay(10);
           longbutton = false;
           button1Pushed = false;
           button2Pushed = false;
@@ -245,13 +246,13 @@ void loop() {
         ) ||
         ( (millis() - buttonPushedMillis) > LONGBUTTONWAIT )
       ) { // ACTION!
-        Serial.println("ACTION"); delay(10);
+        //Serial.println("ACTION"); delay(10);
         if ( (millis() - buttonPushedMillis) > LONGBUTTONWAIT ) {
-          Serial.println("LONG"); delay(10);
+          //Serial.println("LONG"); delay(10);
           longbutton = true; //we have to watch the button release debounce to not to trigger button push again, as the user release the button(s) after the action executed
         }
         else { //buttons released so we can clear these booleans
-          Serial.println("SHORT"); delay(10);
+          //Serial.println("SHORT"); delay(10);
           longbutton = false;          
         }
 
@@ -259,36 +260,35 @@ void loop() {
           if (button2Pushed) {
             if (button3Pushed) { // all 3 button pushed
               if (longbutton) { // LONG
-                Serial.println("all long");
               }
               else { // SHORT
-                Serial.println("all short");
               }
             }
             else { // button 1 and 2 pushed
               if (longbutton) { // LONG
-                Serial.println("1 2 long");
               }
               else { // SHORT //this one not so stable so dont use :)
-                Serial.println("1 2 short");
               }
             }
           }
           else {
             if (button3Pushed) { // button 1 and 3 pushed
               if (longbutton) { // LONG
-                Serial.println("1 3 long");
               }
               else { // SHORT
-                Serial.println("1 3 short");
               }
             }
             else { // only 1 pushed
               if (longbutton) { // LONG
-                Serial.println("1 long");
               }
               else { // SHORT
-                Serial.println("1 short");
+                digitalWrite(enableOledPin, HIGH);
+                digitalWrite(enableClockPin, HIGH);
+                LowPower.powerDown(SLEEP_FOREVER, ADC_OFF, BOD_OFF);
+                digitalWrite(enableOledPin, LOW);
+                digitalWrite(enableClockPin, LOW);
+                u8g.begin();
+                UpdateDisplay(); //todo should re measure everything
               }
             }
           }
@@ -296,18 +296,15 @@ void loop() {
         else if (button2Pushed) {
           if (button3Pushed) { // button 2 and 3 pushed
             if (longbutton) { // LONG
-              Serial.println("2 3 long");
             }
             else { // SHORT
-              Serial.println("2 3 short");
             }
           }
           else { // only 2 pushed
             if (longbutton) { // LONG
-              Serial.println("2 long");
             }
             else { // SHORT
-              Serial.println("2 short");
+              nextScreen();
             }
           }
         }
@@ -357,7 +354,7 @@ void UpdateDisplay() {
     drawScreen();
   }
   while(u8g.nextPage());
-  Serial.println("display updated"); delay(10);
+  //Serial.println("display updated"); delay(10);
 }
 
 byte getXbyPosi(byte posi, boolean shortNumber, byte unitLength, boolean forUnit) {
@@ -445,9 +442,8 @@ void drawFloat(byte posi, float value, byte res, byte unit) {
       char unitstr[2] = "V";
       unitLen = 13; //getStrWidth(unitstr) is 14 but last pixel column is empty
       u8g.setPrintPos(getXbyPosi(posi, res == 1 && value < 9.95 && value >= 0, unitLen, true), getYbyPosi(posi));    
-      u8g.print(unitstr);
-  
-      Serial.print("len "); Serial.println(u8g.getStrWidth(unitstr)); delay(10);
+      u8g.print(unitstr);  
+      //Serial.print("len "); Serial.println(u8g.getStrWidth(unitstr)); delay(10);
       }
       break;
     default:
@@ -474,6 +470,33 @@ void drawWeekDay(byte posi, byte weeks, byte weekdays, boolean weekalso) {
   
 }
 
+void nextScreen() {
+  if (currentScreen == numberOfScreens - 1) {
+    currentScreen = 0;
+  }
+  else {
+    currentScreen++;
+  }
+  seconChange = false;
+  humidChange = false;
+  tempeChange = false;
+  minutChange = false;
+  voltaChange = false;
+  for (byte i=0 ; i < 12 ; i=i+2){
+    switch (scProps[currentScreen][i]) {
+      case 1:
+        tempeChange = true;
+        break;
+      case 2:
+        humidChange = true;
+        break;
+      case 3:
+        voltaChange = true;
+        break;
+    }
+  }
+}
+
 void drawScreen(void) {
   //speedo numbers if using u8g_font_osb35n then 1 number is 28 p wide
   //the dot is 14 p wide, so 1.2 = 70p 12.3 = 98p
@@ -482,23 +505,24 @@ void drawScreen(void) {
   //timR12 C: 11, C°: 18
   //timR14 C: 13, C°: 20
   //u8g_font_helvB18r 13p per number (12p + 1 spaceing), 6p per space
-byte numberOfScreens = 3;
-byte currentScreen = 1;
-byte scProps[3][12] 
 
-  for (int i=0 ; i < 12 ; i=i+2){
+  for (byte i=0 ; i < 12 ; i=i+2){
     switch (scProps[currentScreen][i]) {
       case 1:
-        drawFloat(i+1, tempe, 1, 1);
+        drawFloat(scProps[currentScreen][i+1], tempe, 1, 1);
         break;
       case 2:
-        drawFloat(i+1, humid, 1, 3);
+        drawFloat(scProps[currentScreen][i+1], humid, 1, 3);
         break;
       case 3:
-        drawFloat(i+1, volta, 2, 4);
+        drawFloat(scProps[currentScreen][i+1], volta, 2, 4);
         break;
     }
-  } 
+  }
+
+  /*drawFloat(i+1, tempe, 1, 1);
+  drawFloat(i+1, humid, 1, 3);
+  drawFloat(i+1, volta, 2, 4);*/
 
   /*u8g.setFont(u8g_font_timR18r);
   u8g.setPrintPos(0, 41);
