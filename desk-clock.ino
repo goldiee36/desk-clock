@@ -62,7 +62,6 @@ volatile boolean buttonInterrupt = false;
 volatile boolean button1Pushed = false;
 volatile boolean button2Pushed = false;
 volatile boolean button3Pushed = false;
-volatile boolean needVolta = true;
 #define FAULTYBUTTONWAIT 8000 //in milliseconds
 #define LONGBUTTONWAIT 2000 //in milliseconds
 boolean longbutton = false;
@@ -83,6 +82,15 @@ float lastVolta = -99;
 #define SLEEPTIME 2 //in seconds, in the main sleep section
 byte sleepCounter = 0;
 
+//SCREENS
+byte numberOfScreens = 3;
+byte mySensVals[3][12] = {
+  {1, 1, 9, 2, 0, 0, 0, 0, 0, 0, 0, 0},
+  {1, 1, 9, 2, 0, 0, 0, 0, 0, 0, 0, 0},
+  {1, 1, 9, 2, 0, 0, 0, 0, 0, 0, 0, 0}
+};
+byte sc1-p1 = 
+byte sc2-p1 = 
 
 
 
@@ -262,7 +270,7 @@ void loop() {
               if (longbutton) { // LONG
                 Serial.println("1 2 long");
               }
-              else { // SHORT //this one not so stable dont use :)
+              else { // SHORT //this one not so stable so dont use :)
                 Serial.println("1 2 short");
               }
             }
@@ -337,7 +345,6 @@ void button2Interrupt()
 {
   if ((millis() - button1PushedMillis) >= DEBOUNCEWAIT) {
     button2Pushed = true;
-    needVolta = true;
   }
   button2PushedMillis = millis();
   buttonPushedMillis = millis();
@@ -351,7 +358,6 @@ void UpdateDisplay() {
     drawScreen();
   }
   while(u8g.nextPage());
-  needVolta = false;
   Serial.println("display updated"); delay(10);
 }
 
@@ -477,22 +483,19 @@ void drawScreen(void) {
   //timR12 C: 11, C°: 18
   //timR14 C: 13, C°: 20
   //u8g_font_helvB18r 13p per number (12p + 1 spaceing), 6p per space
-  
+
+
+    //21: B s, 22: s B
+    //31: s s s, 32: B ss, 33: ss B
+    //41: s s ss, 42: s ss s, 43:ss s s
+    //51: s ss ss, 52: ss s ss, 53: ss ss s
+    //61: ss ss ss
+
 
   drawFloat(1, tempe, 1, 1);
-
-
   drawFloat(9, humid, 1, 3);
+  drawFloat(5, volta, 2, 4);
 
-  /*u8g.setFont(u8g_font_timR10r);
-  u8g.setPrintPos(42, 18);
-  u8g.print("C*");
-  u8g.setPrintPos(108, 63);
-  u8g.print("%");*/
-
-  if (needVolta) {
-    drawFloat(5, volta, 2, 4);
-  }
 
   /*u8g.setFont(u8g_font_timR18r);
   u8g.setPrintPos(0, 41);
