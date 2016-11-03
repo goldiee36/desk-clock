@@ -84,13 +84,12 @@ byte sleepCounter = 0;
 
 //SCREENS
 byte numberOfScreens = 3;
-byte mySensVals[3][12] = {
-  {1, 1, 9, 2, 0, 0, 0, 0, 0, 0, 0, 0},
-  {1, 1, 9, 2, 0, 0, 0, 0, 0, 0, 0, 0},
-  {1, 1, 9, 2, 0, 0, 0, 0, 0, 0, 0, 0}
+byte currentScreen = 1;
+byte scProps[3][12] = {
+  {1, 1, 2, 9, 0, 0, 0, 0, 0, 0, 0, 0},
+  {3, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+  {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 5}
 };
-byte sc1-p1 = 
-byte sc2-p1 = 
 
 
 
@@ -483,19 +482,23 @@ void drawScreen(void) {
   //timR12 C: 11, C°: 18
   //timR14 C: 13, C°: 20
   //u8g_font_helvB18r 13p per number (12p + 1 spaceing), 6p per space
+byte numberOfScreens = 3;
+byte currentScreen = 1;
+byte scProps[3][12] 
 
-
-    //21: B s, 22: s B
-    //31: s s s, 32: B ss, 33: ss B
-    //41: s s ss, 42: s ss s, 43:ss s s
-    //51: s ss ss, 52: ss s ss, 53: ss ss s
-    //61: ss ss ss
-
-
-  drawFloat(1, tempe, 1, 1);
-  drawFloat(9, humid, 1, 3);
-  drawFloat(5, volta, 2, 4);
-
+  for (int i=0 ; i < 12 ; i=i+2){
+    switch (scProps[currentScreen][i]) {
+      case 1:
+        drawFloat(i+1, tempe, 1, 1);
+        break;
+      case 2:
+        drawFloat(i+1, humid, 1, 3);
+        break;
+      case 3:
+        drawFloat(i+1, volta, 2, 4);
+        break;
+    }
+  } 
 
   /*u8g.setFont(u8g_font_timR18r);
   u8g.setPrintPos(0, 41);
