@@ -28,7 +28,7 @@
 * screen always on
 * power off automatically if the battery reading is below 3.5V (power on with the left or the middle button)
 * show battery voltage if you push the middle button
-* on time is more then 50 hours
+* on time is more then 100 hours
 
 .Comments
 * removing the resistor on the DS3231 clock module is needed if you use it with a CR non-rechargeable battery as I do
