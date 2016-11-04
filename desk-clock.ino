@@ -79,8 +79,9 @@ byte lastMinut = 99;
 float lastVolta = -99;
 
 //SLEEP RELATED
-#define SLEEPTIME 2 //in seconds, in the main sleep section
+#define SLEEPTIME 2 //in seconds, have to be the same as in the main sleep section!!
 byte sleepCounter = 0;
+
 
 //SCREENS
 byte numberOfScreens = 3;
@@ -91,6 +92,8 @@ byte scProps[3][12] = {
   {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 4}
 };
 
+//OLED
+boolean oledNeeded = true;
 
 
 void setup() {
@@ -204,9 +207,7 @@ void loop() {
     //we want to sleep as much as we can
     //this code is needed to update the sleepCounter, which will trigger to update the temperature, time etc. values
     inMenu = false; //this throw us out from the menu
-    digitalWrite(enableClockPin, HIGH);
     LowPower.powerDown(SLEEP_2S, ADC_OFF, BOD_OFF);
-    digitalWrite(enableClockPin, LOW);
     if (buttonInterrupt) {//not to increase the sleepcounter because sleep may have been interrupted
       buttonInterrupt = false;
     }
@@ -282,13 +283,7 @@ void loop() {
               if (longbutton) { // LONG
               }
               else { // SHORT
-                digitalWrite(enableOledPin, HIGH);
-                digitalWrite(enableClockPin, HIGH);
-                LowPower.powerDown(SLEEP_FOREVER, ADC_OFF, BOD_OFF);
-                digitalWrite(enableOledPin, LOW);
-                digitalWrite(enableClockPin, LOW);
-                u8g.begin();
-                UpdateDisplay(); //todo should re measure everything
+                oledNeeded = !oledNeeded;
               }
             }
           }
@@ -349,11 +344,13 @@ void button2Interrupt()
 
 void UpdateDisplay() {
   // picture loop
+  digitalWrite(enableClockPin, LOW);
   u8g.firstPage(); 
   do {
     drawScreen();
   }
   while(u8g.nextPage());
+  digitalWrite(enableClockPin, HIGH);
   //Serial.println("display updated"); delay(10);
 }
 
