@@ -184,12 +184,16 @@ void loop() {
   //first check if the display needs to be on or off, and if state changed act accordingly
   if (digitalRead(enableOledPin) == LOW) {
     if (!oledNeeded) {
+      Serial.println("turn oled off"); delay(10);
       digitalWrite(enableOledPin, HIGH);
     }
   }
   else if (oledNeeded) {
+    Serial.println("turn oled on"); delay(10);
+    digitalWrite(enableClockPin, LOW); //updatedisplay will turn it off, but it is needed for the u8g.begin()
     digitalWrite(enableOledPin, LOW);
     u8g.begin();
+    UpdateDisplay();
   }
 
   //then update display if needed
@@ -239,12 +243,12 @@ void loop() {
     
   }
   else if (button1Pushed || button2Pushed) { //button detection outside of the menu = standby, with oled on or off does not matter
-    if (digitalRead(buttonPin3) == LOW) { //we cannot detect button3 alone, just with together an interruptbutton (1 or 2)
-      button3Pushed = true;
-    }
-    if ((millis() - buttonPushedMillis) > DEBOUNCEWAIT) { //no action until debounce time elapsed, because we have to wait for the long button pushes (debouncing rising edge)
+      if (digitalRead(buttonPin3) == LOW) { //we cannot detect button3 alone, just with together an interruptbutton (1 or 2)
+        button3Pushed = true;
+      }
+      if ((millis() - buttonPushedMillis) > DEBOUNCEWAIT) { //no action until debounce time elapsed, because we have to wait for the long button pushes (debouncing rising edge)
       //Serial.println("cheking buttons"); delay(10);
-      if (longbutton) { //here we have to go in until the user release all the buttons
+      if (longbutton) { //here we have to go in until the user release all the buttons - the action for the long button press is already happened at this time
         //Serial.println("waiting to release buttons"); delay(10);
         if (digitalRead(buttonPin1) == HIGH && digitalRead(buttonPin2) == HIGH && digitalRead(buttonPin3) == HIGH) {
           //Serial.println("all released"); delay(10);
@@ -316,7 +320,7 @@ void loop() {
             if (longbutton) { // LONG
             }
             else { // SHORT
-              nextScreen();
+              if (oledNeeded) nextScreen();
             }
           }
         }
@@ -329,7 +333,7 @@ void loop() {
           button2PushedMillis = millis();
         }
       }
-    }
+    }    
   }  
 
 
@@ -497,7 +501,7 @@ void nextScreen() {
   minutChange = false;
   voltaChange = false;
   for (byte i=0 ; i < 12 ; i=i+2){
-    switch (scProps[currentScreen][i]) {
+    switch (scProps[currentScreen][i]) { //setting a new type of refresh type (*Change) to true will force the the updateing of the screen
       case 1:
         tempeChange = true;
         break;
