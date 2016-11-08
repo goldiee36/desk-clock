@@ -144,7 +144,8 @@ void loop() {
           //someone pushed the button. exit from the while loop only if the voltage is above 3.5V
           digitalWrite(enableOledPin, LOW);
           digitalWrite(enableClockPin, LOW);
-          u8g.begin(); //back to the beginning of the while to re-measure the voltage
+          u8g.begin(); //prepare display if update will be needed
+          //back to the beginning of the while to re-measure the voltage
         }
         else {
           break; //exit while
@@ -178,8 +179,22 @@ void loop() {
   }*/
 
 
+  //----refresh DISPLAY
+
+  //first check if the display needs to be on or off, and if state changed act accordingly
+  if (digitalRead(enableOledPin) == LOW) {
+    if (!oledNeeded) {
+      digitalWrite(enableOledPin, HIGH);
+    }
+  }
+  else if (oledNeeded) {
+    digitalWrite(enableOledPin, LOW);
+    u8g.begin();
+  }
+
+  //then update display if needed
   if (
-    (!inMenu) && (
+    (oledNeeded) && (!inMenu) && (
       (seconChange && lastSecon != secon) ||
       (humidChange && lastHumid != humid) ||
       (tempeChange && lastTempe != tempe) ||
@@ -187,7 +202,7 @@ void loop() {
       (voltaChange && lastVolta != volta)
     )
   )
-  {    
+  {
     UpdateDisplay();
     if (seconChange) lastSecon = secon;
     else lastSecon = 99; //trigger the next update if screen changed
@@ -200,6 +215,8 @@ void loop() {
     if (voltaChange) lastVolta = volta;
     else lastVolta = -99;
   }
+
+  //----refresh DISPLAY
 
 
 
