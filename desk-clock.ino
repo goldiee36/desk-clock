@@ -42,8 +42,10 @@ float humid = 0;
 byte lastSleepCounterDht = 1;
 
 //CLOCK MODULE STUFF
-byte secon = 0;
+byte houra = 0;
 byte minut = 0;
+#define CLOCKCHECKINTERVAL 2 //in seconds
+byte lastSleepCounterClock = 1;
 
 //MENU STUFF
 #define MENUTIMEOUT 5000 //in milliseconds //has to be bigger then FAULTYBUTTONWAIT
@@ -71,8 +73,6 @@ boolean tempeChange = true;
 boolean humidChange = true;
 boolean voltaChange = true;
 boolean minutChange = false;
-boolean seconChange = false;
-byte lastSecon = 99;
 float lastHumid = -99;
 float lastTempe = -99;
 byte lastMinut = 99;
@@ -116,6 +116,8 @@ void setup() {
   u8g.setRot180();
   
   Serial.begin(57600);
+
+  setSyncProvider(RTC.get); //get the time from the RTC
 
   //button1 interrupt handler
   attachInterrupt(buttonPin1-2, button1Interrupt, FALLING); //2-2 = 0 means digital pin 2
@@ -170,13 +172,19 @@ void loop() {
   }
 
 
-  /*if ((millis() - clockMillis) >= CLOCKWAIT) {
-    clockMillis = millis();
-    setSyncProvider(RTC.get); //get the time from the RTC
+  if ((byte)(sleepCounter - lastSleepCounterClock) >= CLOCKCHECKINTERVAL / SLEEPTIME) {
+    Serial.println("check time"); delay(10);
+    lastSleepCounterClock = sleepCounter;
+    digitalWrite(enableClockPin, LOW);
+    
+    digitalWrite(enableClockPin, HIGH);
     if(timeStatus() == timeSet) { //read success
-      
+      houra = minute();
+      minut = second();
+      Serial.println(houra); delay(10);
+      Serial.println(minut); delay(10);
     }   
-  }*/
+  }
 
 
   //----refresh DISPLAY
@@ -184,12 +192,12 @@ void loop() {
   //first check if the display needs to be on or off, and if state changed act accordingly
   if (digitalRead(enableOledPin) == LOW) {
     if (!oledNeeded) {
-      Serial.println("turn oled off"); delay(10);
+      //Serial.println("turn oled off"); delay(10);
       digitalWrite(enableOledPin, HIGH);
     }
   }
   else if (oledNeeded) {
-    Serial.println("turn oled on"); delay(10);
+    //Serial.println("turn oled on"); delay(10);
     digitalWrite(enableClockPin, LOW); //updatedisplay will turn it off, but it is needed for the u8g.begin()
     digitalWrite(enableOledPin, LOW);
     u8g.begin();
@@ -199,7 +207,6 @@ void loop() {
   //then update display if needed
   if (
     (oledNeeded) && (!inMenu) && (
-      (seconChange && lastSecon != secon) ||
       (humidChange && lastHumid != humid) ||
       (tempeChange && lastTempe != tempe) ||
       (minutChange && lastMinut != minut) ||
@@ -208,10 +215,8 @@ void loop() {
   )
   {
     UpdateDisplay();
-    if (seconChange) lastSecon = secon;
-    else lastSecon = 99; //trigger the next update if screen changed
     if (humidChange) lastHumid = humid;
-    else lastHumid = -99;
+    else lastHumid = -99; //trigger the next update if screen changed
     if (tempeChange) lastTempe = tempe;
     else lastTempe = -99;
     if (minutChange) lastMinut = minut;
@@ -228,12 +233,15 @@ void loop() {
     //we want to sleep as much as we can
     //this code is needed to update the sleepCounter, which will trigger to update the temperature, time etc. values
     inMenu = false; //this throw us out from the menu
-    LowPower.powerDown(SLEEP_2S, ADC_OFF, BOD_OFF);
+    if (oledNeeded) LowPower.powerDown(SLEEP_2S, ADC_OFF, BOD_OFF);
+    else LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF); //longer sleep time if screen is off
+    
     if (buttonInterrupt) {//not to increase the sleepcounter because sleep may have been interrupted
       buttonInterrupt = false;
     }
     else {
-      sleepCounter++;
+      if (oledNeeded) sleepCounter++;
+      else sleepCounter=sleepCounter+4;
       //Serial.println(sleepCounter); delay(10);
     }
   }
@@ -495,7 +503,6 @@ void nextScreen() {
   else {
     currentScreen++;
   }
-  seconChange = false;
   humidChange = false;
   tempeChange = false;
   minutChange = false;
