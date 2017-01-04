@@ -7,6 +7,19 @@ U8GLIB_SSD1306_128X64 u8g(U8G_I2C_OPT_NO_ACK);
 #include "DHT.h" //Modified version of the library!! Original library uses millis/delay to ensure 2 seconds elapses between the measures - with power down it is not working
 #include <Vcc.h>
 
+//SCREEN BASICS:
+//X: 2 small blocks: 62 + 4 + 62, or large block can take all 128 -----OR, middle small block starts at 33
+//Y: 3 small blocks: 18 + 5 + 18 + 5 + 18, or large box either: 41 + 5 + 18 or 18 + 5 + 41
+
+  //numbers if using u8g_font_osb35n then 1 number is 28 p wide
+  //the dot is 14 p wide, so 1.2 = 70p 12.3 = 98p  
+  //u8g_font_timR18r 12p per number (11p + 1 spaceing), dot is 6p wide (5p + 1p space) --> 3 number (3*12p) + 1 dot (6p) + 20p unitofmeas = 62 -- two small block: 62 + 4 pixel space + 62 = 128
+  //timR10 C: 10, C°: 16
+  //timR12 C: 11, C°: 18
+  //timR14 C: 13, C°: 20
+  //u8g_font_helvB18r 13p per number (12p + 1 spaceing), 6p per space
+
+
 //digital pins
 #define buttonPin1 2 //interrupt 0, input, ardu pullup needed
 #define beeperPin 6 //pwm, LOW on, HIGH off
@@ -32,19 +45,19 @@ Vcc vcc(VccCorrection);
 //LOWVOTLAGE STUFF
 byte lowVoltageCounter = 0;
 float volta = 0;
-#define VOLTACHECKINTERVAL 14 //in seconds
+#define VOLTACHECKINTERVAL 32 //in seconds
 byte lastSleepCounterVolta = 1;
 
 //DHT STUFF
 float tempe = 0;
 float humid = 0;
-#define DHTCHECKINTERVAL 12 //in seconds
+#define DHTCHECKINTERVAL 16 //in seconds
 byte lastSleepCounterDht = 1;
 
 //CLOCK MODULE STUFF
 byte houra = 0;
 byte minut = 0;
-#define CLOCKCHECKINTERVAL 2 //in seconds
+#define CLOCKCHECKINTERVAL 30 //in seconds
 byte lastSleepCounterClock = 1;
 
 //MENU STUFF
@@ -53,7 +66,7 @@ boolean inMenu = false;
 
 //DEBOUNCE BUTTONS
 #define DEBOUNCEWAIT 100 //in milliseconds
-volatile unsigned long buttonPushedMillis = 0 - MENUTIMEOUT;
+volatile unsigned long buttonPushedMillis = 0 ; //- MENUTIMEOUT;
 volatile unsigned long button1PushedMillis = 0 - DEBOUNCEWAIT;
 volatile unsigned long button2PushedMillis = 0 - DEBOUNCEWAIT;
 
@@ -79,16 +92,17 @@ byte lastMinut = 99;
 float lastVolta = -99;
 
 //SLEEP RELATED
-#define SLEEPTIME 2 //in seconds, have to be the same as in the main sleep section!!
+#define SLEEPTIME 8 //in seconds, have to be the same as in the main sleep section!!
 byte sleepCounter = 0;
 
 
 //SCREENS
-byte numberOfScreens = 3;
+byte numberOfScreens = 4;
 byte currentScreen = 2; //starts from 0
-byte scProps[3][12] = {
-  {1, 1, 2, 9, 0, 0, 0, 0, 0, 0, 0, 0},
+byte scProps[4][12] = {
+  {1, 1, 2, 9, 0, 0, 0, 0, 0, 0, 0, 0},  //this is one screen, with 6 possibilites of data printed. what-where, 1-1 means temperature to position 1; 2-9 means humidity to position 9 etc.
   {3, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+  {4, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
   {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 4}
 };
 
@@ -176,16 +190,19 @@ void loop() {
     Serial.println("check time"); delay(10);
     lastSleepCounterClock = sleepCounter;
     digitalWrite(enableClockPin, LOW);
-    
+    //if (!oledNeeded) digitalWrite(enableOledPin, LOW);
+    setSyncProvider(RTC.get);
+    //if (!oledNeeded) digitalWrite(enableOledPin, HIGH); //TODO what if interrupt changes this in the meantime
     digitalWrite(enableClockPin, HIGH);
     if(timeStatus() == timeSet) { //read success
-      houra = minute();
-      minut = second();
+      houra = hour();
+      minut = minute();
       Serial.println(houra); delay(10);
       Serial.println(minut); delay(10);
     }   
   }
 
+  
 
   //----refresh DISPLAY
 
@@ -198,10 +215,9 @@ void loop() {
   }
   else if (oledNeeded) {
     //Serial.println("turn oled on"); delay(10);
-    digitalWrite(enableClockPin, LOW); //updatedisplay will turn it off, but it is needed for the u8g.begin()
     digitalWrite(enableOledPin, LOW);
     u8g.begin();
-    UpdateDisplay();
+    UpdateDisplay(); //TODO: is this really needed?
   }
 
   //then update display if needed
@@ -225,19 +241,22 @@ void loop() {
     else lastVolta = -99;
   }
 
-  //----refresh DISPLAY
+  //----------------- refresh DISPLAY
 
 
+
+  // SLEEP
 
   if ((millis() - buttonPushedMillis) >= MENUTIMEOUT) {
     //we want to sleep as much as we can
     //this code is needed to update the sleepCounter, which will trigger to update the temperature, time etc. values
-    inMenu = false; //this throw us out from the menu
-    if (oledNeeded) LowPower.powerDown(SLEEP_2S, ADC_OFF, BOD_OFF);
+    inMenu = false; //this throw us out from the menu //TODO: redraw screen if we were in the menu
+    if (oledNeeded) LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);
     else LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF); //longer sleep time if screen is off
     
-    if (buttonInterrupt) {//not to increase the sleepcounter because sleep may have been interrupted
+    if (buttonInterrupt) {//not to increase the sleepcounter because sleep have been interrupted
       buttonInterrupt = false;
+      //TODO sync time, as we dont know how much time we were in sleep
     }
     else {
       if (oledNeeded) sleepCounter++;
@@ -245,6 +264,12 @@ void loop() {
       //Serial.println(sleepCounter); delay(10);
     }
   }
+
+  //-------------------- SLEEP
+
+
+
+  // BUTTON handling
   
   if (inMenu) {
     //we are in the menu!
@@ -344,7 +369,7 @@ void loop() {
     }    
   }  
 
-
+  //------------------ BUTTON handling
 
   
 } //end of main loop
@@ -371,6 +396,8 @@ void button2Interrupt()
   buttonInterrupt = true;
 }
 
+
+
 void UpdateDisplay() {
   // picture loop
   digitalWrite(enableClockPin, LOW);
@@ -383,7 +410,37 @@ void UpdateDisplay() {
   //Serial.println("display updated"); delay(10);
 }
 
-byte getXbyPosi(byte posi, boolean shortNumber, byte unitLength, boolean forUnit) {
+byte getXbyPosi(byte posi, byte valueLength, byte unitLength, boolean forUnit) {
+  //valueLength: eg.: float like 12.3 or 1.23 --> 42 (with trailing space pixel), or 1.2 --> 30
+  //if forUnit is true we need the X position for printing the unit of meas.
+  byte Xpos = 0;
+  switch (posi) {
+    case 1:
+    case 4:
+    case 7:
+      Xpos = 0;
+      break;
+    case 2:
+    case 5:
+    case 8:
+      Xpos = 33 + ((62 - (valueLength + unitLength)) / 2) ;
+      break;
+    case 3:
+    case 6:
+    case 9:
+      Xpos = 66 + (62 - (valueLength + unitLength)) ;
+      break;
+    case 11:
+    case 12:
+      Xpos = ((128 - (valueLength + unitLength)) / 2) ;
+      break;
+  }
+  return forUnit ? Xpos + valueLength : Xpos ;
+}
+
+byte getXbyPosi2(byte posi, boolean shortNumber, byte unitLength, boolean forUnit) {
+  //shortnumber: when resoultion is 1 digit ( x.y ), but the whole part of the number is only 1 digit long (like below 10)
+  //if forUnit is true we need the X position for printing the unit of meas.
   byte returny = 0;
   byte plusForUnit = 42;
   switch (posi) {
@@ -407,7 +464,7 @@ byte getXbyPosi(byte posi, boolean shortNumber, byte unitLength, boolean forUnit
     case 11:
     case 12:
       plusForUnit -= shortNumber ? 20 : 0 ; //half big char left
-      returny = shortNumber ? 14 + ((40 - unitLength) / 2) : 0 + ((40 - unitLength) / 2) ; //half big char right //todo big unit length is really 40?
+      returny = shortNumber ? 14 + ((40 - unitLength) / 2) : 0 + ((40 - unitLength) / 2) ; //half big char right //todo max big unit length is really 40?
       break;
   }
   return forUnit ? returny + plusForUnit : returny ;
@@ -441,17 +498,18 @@ byte getYbyPosi(byte posi) {
 void drawFloat(byte posi, float value, byte res, byte unit) {
   // posi: 1-9 small blocks: 1-top-left, 2-top-center, 3-top-right, 4-middle-left etc. 11-12 big blocks: 11-top, 12-bottom
   // res: 1: 12.3 (temper, humid), 2: 1.23 (volta)
-  // unit: 1-C° (alt+0176), 2-F°, 3-%, 4-V, 5-$, 6-€ (alt+0128) which is an equal and a ( or C
+  // unit: 1-C° (alt+0176), 2-F°, 3-%, 4-V, 
   byte unitLen = 0;
-  byte curXpos = 0;
-  
+  //byte curXpos = 0;
+
+  //draw the unit of meas.
   switch (unit) {
     case 1: {
       u8g.setFont(u8g_font_timR14);      
       char unitstr[3] = "C ";
-      unitstr[1] = 176;
+      unitstr[1] = 176; //this is the degree sign
       unitLen = 19; //getStrWidth(unitstr) is 20 but last pixel column is empty
-      u8g.setPrintPos(getXbyPosi(posi, res == 1 && value < 9.95 && value >= 0, unitLen, true), getYbyPosi(posi));    
+      u8g.setPrintPos(getXbyPosi(posi, res == 1 && value < 9.95 && value >= 0 ? 30 : 42, unitLen, true), getYbyPosi(posi));    
       u8g.print(unitstr);
       }
       break;
@@ -459,15 +517,15 @@ void drawFloat(byte posi, float value, byte res, byte unit) {
       u8g.setFont(u8g_font_timR14);      
       char unitstr[2] = "%";
       unitLen = 14; //getStrWidth(unitstr) is 15 but last pixel column is empty
-      u8g.setPrintPos(getXbyPosi(posi, res == 1 && value < 9.95 && value >= 0, unitLen, true), getYbyPosi(posi));    
+      u8g.setPrintPos(getXbyPosi(posi, res == 1 && value < 9.95 && value >= 0 ? 30 : 42, unitLen, true), getYbyPosi(posi));    
       u8g.print(unitstr);
       }
       break;
     case 4: {
-    u8g.setFont(u8g_font_timR14);      
+      u8g.setFont(u8g_font_timR14);      
       char unitstr[2] = "V";
       unitLen = 13; //getStrWidth(unitstr) is 14 but last pixel column is empty
-      u8g.setPrintPos(getXbyPosi(posi, res == 1 && value < 9.95 && value >= 0, unitLen, true), getYbyPosi(posi));    
+      u8g.setPrintPos(getXbyPosi(posi, res == 1 && value < 9.95 && value >= 0 ? 30 : 42, unitLen, true), getYbyPosi(posi));    
       u8g.print(unitstr);  
       //Serial.print("len "); Serial.println(u8g.getStrWidth(unitstr)); delay(10);
       }
@@ -475,14 +533,16 @@ void drawFloat(byte posi, float value, byte res, byte unit) {
     default:
     break;
   }
-  
+
+  //draw the number (value) itself
   u8g.setFont(u8g_font_timR18r);  
-  u8g.setPrintPos(getXbyPosi(posi, res == 1 && value < 9.95 && value >= 0, unitLen, false), getYbyPosi(posi));
+  u8g.setPrintPos(getXbyPosi(posi, res == 1 && value < 9.95 && value >= 0 ? 30 : 42, unitLen, false), getYbyPosi(posi));
   u8g.print(value, res);
 
   
 }
 
+//5-$, 6-€ (alt+0128) which is an = and a ( or C
 void drawTime(byte posi, byte hours, byte minutes) {
   
 }
@@ -518,18 +578,14 @@ void nextScreen() {
       case 3:
         voltaChange = true;
         break;
+      case 4:
+        minutChange = true;
+        break;
     }
   }
 }
 
 void drawScreen(void) {
-  //speedo numbers if using u8g_font_osb35n then 1 number is 28 p wide
-  //the dot is 14 p wide, so 1.2 = 70p 12.3 = 98p
-  //u8g_font_timR18r 12p per number (11p + 1 spaceing), dot is 6p wide --> 3 number, 1 dot, 20p unitofmeas: 62 + 4 pixel space + 62 = 128
-  //timR10 C: 10, C°: 16
-  //timR12 C: 11, C°: 18
-  //timR14 C: 13, C°: 20
-  //u8g_font_helvB18r 13p per number (12p + 1 spaceing), 6p per space
 
   for (byte i=0 ; i < 12 ; i=i+2){
     switch (scProps[currentScreen][i]) {
@@ -541,6 +597,9 @@ void drawScreen(void) {
         break;
       case 3:
         drawFloat(scProps[currentScreen][i+1], volta, 2, 4);
+        break;
+      case 4:
+        drawFloat(scProps[currentScreen][i+1], minut, 1, 4);
         break;
     }
   }
