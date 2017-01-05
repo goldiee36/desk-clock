@@ -1,7 +1,8 @@
 #include "U8glib.h"
 U8GLIB_SSD1306_128X64 u8g(U8G_I2C_OPT_NO_ACK);
+//U8GLIB_SSD1306_128X64 u8g(U8G_I2C_OPT_NONE|U8G_I2C_OPT_DEV_0);  // I2C / TWI 
+//U8GLIB_SSD1306_128X64 u8g(U8G_I2C_OPT_DEV_0|U8G_I2C_OPT_NO_ACK|U8G_I2C_OPT_FAST); // Fast I2C / TWI 
 #include "LowPower.h"
-#include <DS3232RTC.h>
 #include <TimeLib.h>
 #include <Wire.h>
 #include "DHT.h" //Modified version of the library!! Original library uses millis/delay to ensure 2 seconds elapses between the measures - with power down it is not working
@@ -51,13 +52,15 @@ byte lastSleepCounterVolta = 1;
 //DHT STUFF
 float tempe = 0;
 float humid = 0;
-#define DHTCHECKINTERVAL 16 //in seconds
+#define DHTCHECKINTERVAL 6 //in seconds
 byte lastSleepCounterDht = 1;
 
 //CLOCK MODULE STUFF
-byte houra = 0;
-byte minut = 0;
-#define CLOCKCHECKINTERVAL 30 //in seconds
+tmElements_t timeElement;
+byte houra = 88;
+byte minut = 88;
+byte secon = 88;
+#define CLOCKCHECKINTERVAL 2 //in seconds
 byte lastSleepCounterClock = 1;
 
 //MENU STUFF
@@ -92,7 +95,7 @@ byte lastMinut = 99;
 float lastVolta = -99;
 
 //SLEEP RELATED
-#define SLEEPTIME 8 //in seconds, have to be the same as in the main sleep section!!
+#define SLEEPTIME 2 //in seconds, have to be the same as in the main sleep section!!
 byte sleepCounter = 0;
 
 
@@ -129,9 +132,10 @@ void setup() {
   u8g.begin(); 
   u8g.setRot180();
   
-  Serial.begin(57600);
+  Serial.begin(115200);
 
-  setSyncProvider(RTC.get); //get the time from the RTC
+  //RTC DS3231
+  Wire.begin();  
 
   //button1 interrupt handler
   attachInterrupt(buttonPin1-2, button1Interrupt, FALLING); //2-2 = 0 means digital pin 2
@@ -183,23 +187,22 @@ void loop() {
       tempe = dht.getTemperature();
       //Serial.print("r dht "); Serial.print(tempe); Serial.print(" "); Serial.println(humid); delay(10);
     }
+    else {
+      humid = -88;
+      tempe = -88;
+    }
   }
 
 
   if ((byte)(sleepCounter - lastSleepCounterClock) >= CLOCKCHECKINTERVAL / SLEEPTIME) {
-    Serial.println("check time"); delay(10);
+    //Serial.println("check time"); delay(10);
     lastSleepCounterClock = sleepCounter;
-    digitalWrite(enableClockPin, LOW);
-    //if (!oledNeeded) digitalWrite(enableOledPin, LOW);
-    setSyncProvider(RTC.get);
-    //if (!oledNeeded) digitalWrite(enableOledPin, HIGH); //TODO what if interrupt changes this in the meantime
-    digitalWrite(enableClockPin, HIGH);
-    if(timeStatus() == timeSet) { //read success
-      houra = hour();
-      minut = minute();
-      Serial.println(houra); delay(10);
-      Serial.println(minut); delay(10);
-    }   
+
+    if (readHMS(houra, minut, secon)) {
+      houra = 88;
+      minut = 88;
+      secon = 88;
+    }
   }
 
   
@@ -251,7 +254,7 @@ void loop() {
     //we want to sleep as much as we can
     //this code is needed to update the sleepCounter, which will trigger to update the temperature, time etc. values
     inMenu = false; //this throw us out from the menu //TODO: redraw screen if we were in the menu
-    if (oledNeeded) LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);
+    if (oledNeeded) LowPower.powerDown(SLEEP_2S, ADC_OFF, BOD_OFF);
     else LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF); //longer sleep time if screen is off
     
     if (buttonInterrupt) {//not to increase the sleepcounter because sleep have been interrupted
@@ -266,6 +269,11 @@ void loop() {
   }
 
   //-------------------- SLEEP
+
+
+
+
+
 
 
 
@@ -374,6 +382,17 @@ void loop() {
   
 } //end of main loop
 
+
+
+
+
+
+
+
+
+
+
+
 //called by the digital pin 2 interrupt on FALLING edge
 void button1Interrupt()
 {
@@ -400,6 +419,9 @@ void button2Interrupt()
 
 void UpdateDisplay() {
   // picture loop
+  Serial.println(houra); delay(10);
+  Serial.println(minut); delay(10);
+  Serial.println(secon); delay(10);
   digitalWrite(enableClockPin, LOW);
   u8g.firstPage(); 
   do {
@@ -604,6 +626,13 @@ void drawScreen(void) {
     }
   }
 
+
+
+/*uint8_t dec2bcd(uint8_t n)
+{
+    return n + 6 * (n / 10);
+}*/
+
   /*drawFloat(i+1, tempe, 1, 1);
   drawFloat(i+1, humid, 1, 3);
   drawFloat(i+1, volta, 2, 4);*/
@@ -668,6 +697,48 @@ void blink2() {
   digitalWrite(LEDPIN, LOW); LowPower.powerDown(SLEEP_250MS, ADC_OFF, BOD_OFF);
   digitalWrite(LEDPIN, HIGH); LowPower.powerDown(SLEEP_30MS, ADC_OFF, BOD_OFF);
   digitalWrite(LEDPIN, LOW);
+}
+
+
+
+byte readHMS(byte &h, byte &m, byte &s) {
+  digitalWrite(enableClockPin, LOW);
+  LowPower.powerDown(SLEEP_15MS, ADC_OFF, BOD_OFF); //clock module needs some time to wake up
+  if (!oledNeeded) digitalWrite(enableOledPin, LOW);
+  return readHMSPure(h, m, s);
+  if (!oledNeeded) digitalWrite(enableOledPin, HIGH); //TODO what if interrupt changes this in the meantime
+  digitalWrite(enableClockPin, HIGH);
+}
+
+
+byte readHMSPure(byte &h, byte &m, byte &s) {
+  // return values:
+  //0: success
+  //1: data too long to fit in transmit buffer
+  //2: received NACK on transmit of address
+  //3: received NACK on transmit of data
+  //4: other error 
+  #define RTC_ADDR 0x68
+
+  Wire.beginTransmission(RTC_ADDR);
+  Wire.write(0);
+  if ( byte e = Wire.endTransmission() ) {
+    return e;
+  }
+  Wire.requestFrom(RTC_ADDR, 3); //request X bytes
+  s = binToDec(Wire.read());
+  m = binToDec(Wire.read());
+  h = binToDec(Wire.read() & B00111111);   //assumes 24hr clock
+  //weekday = Wire.read();
+  //monthday = binToDec(Wire.read());
+  //month = binToDec(Wire.read() & B01111111);  //don't use the Century bit
+  //year = binToDec(Wire.read());
+  return 0;
+}
+
+byte binToDec(byte val)
+{//bitwise: aaaabbbb --> aaaa * 10 + bbbb
+  return (10 * (val >> 4) + (val & 15));
 }
 
 /*measurements:
