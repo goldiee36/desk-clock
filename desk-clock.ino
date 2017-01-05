@@ -419,9 +419,6 @@ void button2Interrupt()
 
 void UpdateDisplay() {
   // picture loop
-  Serial.println(houra); delay(10);
-  Serial.println(minut); delay(10);
-  Serial.println(secon); delay(10);
   digitalWrite(enableClockPin, LOW);
   u8g.firstPage(); 
   do {
@@ -517,56 +514,67 @@ byte getYbyPosi(byte posi) {
   }
 }
 
-void drawFloat(byte posi, float value, byte res, byte unit) {
+void drawStrUnit(byte posi, char str[], byte unit) {
   // posi: 1-9 small blocks: 1-top-left, 2-top-center, 3-top-right, 4-middle-left etc. 11-12 big blocks: 11-top, 12-bottom
   // res: 1: 12.3 (temper, humid), 2: 1.23 (volta)
-  // unit: 1-C° (alt+0176), 2-F°, 3-%, 4-V, 
-  byte unitLen = 0;
-  //byte curXpos = 0;
+  // unit: 1-C° (alt+0176), 2-F°, 3-%, 4-V, anything else like 0 is nothing
+  u8g.setFont(u8g_font_timR18r);
+  byte valueLen = u8g.getStrWidth(str); 
 
   //draw the unit of meas.
+  byte unitLen = 0;  // max lenght is 20 without the space pixel at the end 
   switch (unit) {
     case 1: {
       u8g.setFont(u8g_font_timR14);      
-      char unitstr[3] = "C ";
-      unitstr[1] = 176; //this is the degree sign
-      unitLen = 19; //getStrWidth(unitstr) is 20 but last pixel column is empty
-      u8g.setPrintPos(getXbyPosi(posi, res == 1 && value < 9.95 && value >= 0 ? 30 : 42, unitLen, true), getYbyPosi(posi));    
-      u8g.print(unitstr);
+      char unitStr[3] = " C";
+      unitStr[0] = 176; //this is the degree sign
+      unitLen = u8g.getStrWidth(unitStr) - 1; //getStrWidth(unitstr) is 20 but last pixel column is empty
+      u8g.setPrintPos(getXbyPosi(posi, valueLen, unitLen, true), getYbyPosi(posi));    
+      u8g.print(unitStr);
       }
       break;
     case 3: {
       u8g.setFont(u8g_font_timR14);      
-      char unitstr[2] = "%";
-      unitLen = 14; //getStrWidth(unitstr) is 15 but last pixel column is empty
-      u8g.setPrintPos(getXbyPosi(posi, res == 1 && value < 9.95 && value >= 0 ? 30 : 42, unitLen, true), getYbyPosi(posi));    
-      u8g.print(unitstr);
+      char unitStr[2] = "%";
+      unitLen = u8g.getStrWidth(unitStr) - 1; //getStrWidth(unitstr) is 15 but last pixel column is empty
+      u8g.setPrintPos(getXbyPosi(posi, valueLen, unitLen, true), getYbyPosi(posi));    
+      u8g.print(unitStr);
       }
       break;
     case 4: {
       u8g.setFont(u8g_font_timR14);      
-      char unitstr[2] = "V";
-      unitLen = 13; //getStrWidth(unitstr) is 14 but last pixel column is empty
-      u8g.setPrintPos(getXbyPosi(posi, res == 1 && value < 9.95 && value >= 0 ? 30 : 42, unitLen, true), getYbyPosi(posi));    
-      u8g.print(unitstr);  
+      char unitStr[2] = "V"; 
+      unitLen = u8g.getStrWidth(unitStr) - 1; //getStrWidth(unitstr) is 14 but last pixel column is empty
+      u8g.setPrintPos(getXbyPosi(posi, valueLen, unitLen, true), getYbyPosi(posi));    
+      u8g.print(unitStr);  
       //Serial.print("len "); Serial.println(u8g.getStrWidth(unitstr)); delay(10);
       }
       break;
     default:
-    break;
+      unitLen = 0;
+      break;
   }
 
   //draw the number (value) itself
-  u8g.setFont(u8g_font_timR18r);  
-  u8g.setPrintPos(getXbyPosi(posi, res == 1 && value < 9.95 && value >= 0 ? 30 : 42, unitLen, false), getYbyPosi(posi));
-  u8g.print(value, res);
+  //we need the unit of meas. lenght to draw the number
+  u8g.setFont(u8g_font_timR18r);
+  u8g.setPrintPos(getXbyPosi(posi, valueLen, unitLen, false), getYbyPosi(posi));
+  u8g.print(str);  
+}
 
-  
+void drawFloatUnit(byte posi, float value, byte unit) {
+  char valueStr[5];
+  dtostrf(value, 3, value < 9.95 && value >= 0 ? 2 : 1, valueStr); //TODO value >= 0 are you sure?
+  drawStrUnit(posi, valueStr, unit);
 }
 
 //5-$, 6-€ (alt+0128) which is an = and a ( or C
 void drawTime(byte posi, byte hours, byte minutes) {
-  
+  byte neededCharLength = snprintf(NULL, 0, "%i:%i", hours, minutes);
+  char valueStr[1 + neededCharLength]; //!!!THE TWO SPRINTF FORMATS HAVE TO BE THE SAME!!!
+  //char valueStr[6];
+  sprintf(valueStr, "%i:%i", hours, minutes);
+  drawStrUnit(posi, valueStr, 0);
 }
 
 void drawDate(byte posi, byte months, byte days, boolean dayfirst) {
@@ -612,16 +620,16 @@ void drawScreen(void) {
   for (byte i=0 ; i < 12 ; i=i+2){
     switch (scProps[currentScreen][i]) {
       case 1:
-        drawFloat(scProps[currentScreen][i+1], tempe, 1, 1);
+        drawFloatUnit(scProps[currentScreen][i+1], tempe, 1);
         break;
       case 2:
-        drawFloat(scProps[currentScreen][i+1], humid, 1, 3);
+        drawFloatUnit(scProps[currentScreen][i+1], humid, 0);
         break;
       case 3:
-        drawFloat(scProps[currentScreen][i+1], volta, 2, 4);
+        drawFloatUnit(scProps[currentScreen][i+1], volta, 4);
         break;
       case 4:
-        drawFloat(scProps[currentScreen][i+1], minut, 1, 4);
+        drawTime(scProps[currentScreen][i+1], houra, minut);
         break;
     }
   }
