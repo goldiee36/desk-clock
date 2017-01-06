@@ -3,7 +3,7 @@ U8GLIB_SSD1306_128X64 u8g(U8G_I2C_OPT_NO_ACK);
 //U8GLIB_SSD1306_128X64 u8g(U8G_I2C_OPT_NONE|U8G_I2C_OPT_DEV_0);  // I2C / TWI 
 //U8GLIB_SSD1306_128X64 u8g(U8G_I2C_OPT_DEV_0|U8G_I2C_OPT_NO_ACK|U8G_I2C_OPT_FAST); // Fast I2C / TWI 
 #include "LowPower.h"
-#include <TimeLib.h>
+#include <TimeLib.h> //TODO not needed?
 #include <Wire.h>
 #include "DHT.h" //Modified version of the library!! Original library uses millis/delay to ensure 2 seconds elapses between the measures - with power down it is not working
 #include <Vcc.h>
@@ -46,22 +46,27 @@ Vcc vcc(VccCorrection);
 //LOWVOTLAGE STUFF
 byte lowVoltageCounter = 0;
 float volta = 0;
-#define VOLTACHECKINTERVAL 32 //in seconds
-byte lastSleepCounterVolta = 1;
+#define VOLTACHECKINTERVAL 80 //in seconds
+unsigned int lastSleepCounterVolta = 1;
 
 //DHT STUFF
 float tempe = 0;
 float humid = 0;
-#define DHTCHECKINTERVAL 6 //in seconds
-byte lastSleepCounterDht = 1;
+#define DHTCHECKINTERVAL 20 //in seconds
+unsigned int lastSleepCounterDht = 1;
 
 //CLOCK MODULE STUFF
 tmElements_t timeElement;
+int yeara = 1960;
+byte monta = 88;
+byte moday = 88;
+byte weday = 88;
 byte houra = 88;
 byte minut = 88;
 byte secon = 88;
-#define CLOCKCHECKINTERVAL 2 //in seconds
-byte lastSleepCounterClock = 1;
+#define CLOCKCHECKINTERVAL 90 //in seconds
+unsigned int lastSleepCounterClock = 1;
+unsigned long updateSeconMillis = 0 ;
 
 //MENU STUFF
 #define MENUTIMEOUT 5000 //in milliseconds //has to be bigger then FAULTYBUTTONWAIT
@@ -95,18 +100,19 @@ byte lastMinut = 99;
 float lastVolta = -99;
 
 //SLEEP RELATED
-#define SLEEPTIME 2 //in seconds, have to be the same as in the main sleep section!!
-byte sleepCounter = 0;
+#define NONSLEEPTIMEOUT 3000 
+#define SLEEPTIME 8 //!!in seconds, have to be the same as in the main sleep section!!
+unsigned int sleepCounter = 0;
 
 
-//SCREENS
+//SCREENS - WHAT TYPE WHICH POSITION
 byte numberOfScreens = 4;
-byte currentScreen = 2; //starts from 0
-byte scProps[4][12] = {
+byte currentScreen = 0; //starts from 0
+byte scProps[4][12] = { //TODO sanity check if displays are not covering each other
   {1, 1, 2, 9, 0, 0, 0, 0, 0, 0, 0, 0},  //this is one screen, with 6 possibilites of data printed. what-where, 1-1 means temperature to position 1; 2-9 means humidity to position 9 etc.
   {3, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
   {4, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-  {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 4}
+  {1, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 };
 
 //OLED
@@ -116,7 +122,7 @@ boolean oledNeeded = true;
 void setup() {
   pinMode(buttonPin1, INPUT_PULLUP);
   pinMode(buttonPin2, INPUT_PULLUP);
-  pinMode(buttonPin3, INPUT_PULLUP);
+  pinMode(buttonPin3, INPUT_PULLUP);  
 
   pinMode(beeperPin, OUTPUT);
   pinMode(enableOledPin, OUTPUT);
@@ -124,6 +130,8 @@ void setup() {
   digitalWrite(beeperPin, HIGH);
   digitalWrite(enableOledPin, LOW);
   digitalWrite(enableClockPin, LOW);
+
+  delay(200);
 
   //dht22
   dht.begin();
@@ -141,17 +149,24 @@ void setup() {
   attachInterrupt(buttonPin1-2, button1Interrupt, FALLING); //2-2 = 0 means digital pin 2
   attachInterrupt(buttonPin2-2, button2Interrupt, FALLING); //3-2 = 1 means digital pin 3
 
-  nextScreen();
+  setCurrentScreen(currentScreen); //it is needed to set up the trigger types for refreshing the display for the actual screen
 }
 
 
 void loop() {
-  if ((byte)(sleepCounter - lastSleepCounterVolta) >= VOLTACHECKINTERVAL / SLEEPTIME) {
+
+  //UPDATE MAIN VALUES
+
+  //VOLTAGE
+   
+  if ((unsigned int)(sleepCounter - lastSleepCounterVolta) >= (unsigned int)(VOLTACHECKINTERVAL / SLEEPTIME)) {
     lastSleepCounterVolta = sleepCounter;
+
     while (true) {// while loop will be breaked if the voltage is OK. We need this while loop to remeasure voltage after shutdown/power on
-      delay(10); //needed because of the voltage meas
+      delay(10); //needed because of the voltage meas after sleep
+      Serial.println("volt"); delay(10);
       volta = vcc.Read_Volts();
-      //Serial.print("reading volta "); Serial.println(volta); delay(10);
+      //Serial.println(volta); delay(10);
   
       if (volta < 3.5 ) {
         lowVoltageCounter = lowVoltageCounter < 250 ? lowVoltageCounter + 1 : lowVoltageCounter; //only increase the counter if value less then 250
@@ -180,204 +195,250 @@ void loop() {
   //-----low voltage detection 
 
 
-  if ((byte)(sleepCounter - lastSleepCounterDht) >= DHTCHECKINTERVAL / SLEEPTIME) {
+  //TEMPERATURE AND HUMIDITY
+
+  if ((unsigned int)(sleepCounter - lastSleepCounterDht) >= (unsigned int)(DHTCHECKINTERVAL / SLEEPTIME)) {
     lastSleepCounterDht = sleepCounter;
+    Serial.println("dht"); delay(10);
+    
     if (dht.read()) { //read success
       humid = dht.getHumidity();
-      tempe = dht.getTemperature();
-      //Serial.print("r dht "); Serial.print(tempe); Serial.print(" "); Serial.println(humid); delay(10);
+      tempe = dht.getTemperature();      
+      //Serial.print(tempe); Serial.print(" "); Serial.println(humid); delay(10);
     }
     else {
       humid = -88;
       tempe = -88;
     }
   }
+  // -------------------- TEMPERATURE AND HUMIDITY
 
 
-  if ((byte)(sleepCounter - lastSleepCounterClock) >= CLOCKCHECKINTERVAL / SLEEPTIME) {
-    //Serial.println("check time"); delay(10);
-    lastSleepCounterClock = sleepCounter;
-
-    if (readHMS(houra, minut, secon)) {
-      houra = 88;
-      minut = 88;
-      secon = 88;
-    }
-  }
-
+  //TIME
   
-
-  //----refresh DISPLAY
-
-  //first check if the display needs to be on or off, and if state changed act accordingly
-  if (digitalRead(enableOledPin) == LOW) {
-    if (!oledNeeded) {
-      //Serial.println("turn oled off"); delay(10);
-      digitalWrite(enableOledPin, HIGH);
-    }
-  }
-  else if (oledNeeded) {
-    //Serial.println("turn oled on"); delay(10);
-    digitalWrite(enableOledPin, LOW);
-    u8g.begin();
-    UpdateDisplay(); //TODO: is this really needed?
-  }
-
-  //then update display if needed
-  if (
-    (oledNeeded) && (!inMenu) && (
-      (humidChange && lastHumid != humid) ||
-      (tempeChange && lastTempe != tempe) ||
-      (minutChange && lastMinut != minut) ||
-      (voltaChange && lastVolta != volta)
-    )
-  )
-  {
-    UpdateDisplay();
-    if (humidChange) lastHumid = humid;
-    else lastHumid = -99; //trigger the next update if screen changed
-    if (tempeChange) lastTempe = tempe;
-    else lastTempe = -99;
-    if (minutChange) lastMinut = minut;
-    else lastMinut = 99;
-    if (voltaChange) lastVolta = volta;
-    else lastVolta = -99;
-  }
-
-  //----------------- refresh DISPLAY
-
-
-
-  // SLEEP
-
-  if ((millis() - buttonPushedMillis) >= MENUTIMEOUT) {
-    //we want to sleep as much as we can
-    //this code is needed to update the sleepCounter, which will trigger to update the temperature, time etc. values
-    inMenu = false; //this throw us out from the menu //TODO: redraw screen if we were in the menu
-    if (oledNeeded) LowPower.powerDown(SLEEP_2S, ADC_OFF, BOD_OFF);
-    else LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF); //longer sleep time if screen is off
-    
-    if (buttonInterrupt) {//not to increase the sleepcounter because sleep have been interrupted
-      buttonInterrupt = false;
-      //TODO sync time, as we dont know how much time we were in sleep
+  if ( (unsigned int)(sleepCounter - lastSleepCounterClock) >= (unsigned int)(CLOCKCHECKINTERVAL / SLEEPTIME) ) {    
+    lastSleepCounterClock = sleepCounter;
+    Serial.println("time"); delay(10);
+  
+    if (!readHMS(houra, minut, secon)) {
+      //Serial.print("T "); Serial.println(secon); delay(10);
+      updateSeconMillis=millis()-500; //this will keep the time uptodate when not in sleep /-500: we are on a bit late anyway
     }
     else {
-      if (oledNeeded) sleepCounter++;
-      else sleepCounter=sleepCounter+4;
-      //Serial.println(sleepCounter); delay(10);
+      yeara = 1960;
+      monta = 88;
+      moday = 88;
+      weday = 88;
+      houra = 88;
+      minut = 88;
+      secon = 88;      
     }
   }
 
-  //-------------------- SLEEP
-
-
-
-
-
-
-
-
-  // BUTTON handling
-  
-  if (inMenu) {
-    //we are in the menu!
-    
+  //timekeeping when not in sleep
+  if ((millis() - updateSeconMillis) > 1000) {
+    increaseTime(1);
+    Serial.print("A "); Serial.println(secon); delay(10);
+    updateSeconMillis=millis();
   }
-  else if (button1Pushed || button2Pushed) { //button detection outside of the menu = standby, with oled on or off does not matter
-      if (digitalRead(buttonPin3) == LOW) { //we cannot detect button3 alone, just with together an interruptbutton (1 or 2)
-        button3Pushed = true;
-      }
-      if ((millis() - buttonPushedMillis) > DEBOUNCEWAIT) { //no action until debounce time elapsed, because we have to wait for the long button pushes (debouncing rising edge)
-      //Serial.println("cheking buttons"); delay(10);
-      if (longbutton) { //here we have to go in until the user release all the buttons - the action for the long button press is already happened at this time
-        //Serial.println("waiting to release buttons"); delay(10);
-        if (digitalRead(buttonPin1) == HIGH && digitalRead(buttonPin2) == HIGH && digitalRead(buttonPin3) == HIGH) {
-          //Serial.println("all released"); delay(10);
-          longbutton = false;
-          button1Pushed = false;
-          button2Pushed = false;
-          button3Pushed = false;
-          button1PushedMillis = millis(); //not accepting new commands for debounce time (debouncing the release of the button)
-          button2PushedMillis = millis();
-        }
-      }
-      else if ( //we need some actions but no action until all the buttons are released OR longbutton timeout runs out
-        (
-          digitalRead(buttonPin1) == HIGH &&
-          digitalRead(buttonPin2) == HIGH &&
-          digitalRead(buttonPin3) == HIGH
-        ) ||
-        ( (millis() - buttonPushedMillis) > LONGBUTTONWAIT )
-      ) { // ACTION!
-        //Serial.println("ACTION"); delay(10);
-        if ( (millis() - buttonPushedMillis) > LONGBUTTONWAIT ) {
-          //Serial.println("LONG"); delay(10);
-          longbutton = true; //we have to watch the button release debounce to not to trigger button push again, as the user release the button(s) after the action executed
-        }
-        else { //buttons released so we can clear these booleans
-          //Serial.println("SHORT"); delay(10);
-          longbutton = false;          
-        }
 
-        if (button1Pushed) {
-          if (button2Pushed) {
-            if (button3Pushed) { // all 3 button pushed
-              if (longbutton) { // LONG
-              }
-              else { // SHORT
-              }
-            }
-            else { // button 1 and 2 pushed
-              if (longbutton) { // LONG
-              }
-              else { // SHORT //this one not so stable so dont use :)
-              }
-            }
-          }
-          else {
-            if (button3Pushed) { // button 1 and 3 pushed
-              if (longbutton) { // LONG
-              }
-              else { // SHORT
-              }
-            }
-            else { // only 1 pushed
-              if (longbutton) { // LONG
-              }
-              else { // SHORT
-                oledNeeded = !oledNeeded;
-              }
-            }
-          }
-        }
-        else if (button2Pushed) {
-          if (button3Pushed) { // button 2 and 3 pushed
-            if (longbutton) { // LONG
-            }
-            else { // SHORT
-            }
-          }
-          else { // only 2 pushed
-            if (longbutton) { // LONG
-            }
-            else { // SHORT
-              if (oledNeeded) nextScreen();
-            }
-          }
-        }
-        //ACTION ENDS
-        if (longbutton == false) { //if short clear booleans
-          button1Pushed = false;
-          button2Pushed = false;
-          button3Pushed = false;
-          button1PushedMillis = millis(); //not accepting new commands for debounce time (debouncing the release of the button)
-          button2PushedMillis = millis();
-        }
+  // --------------------------- TIME
+
+
+
+  
+
+
+
+
+
+
+
+  
+
+
+
+
+
+
+
+
+  
+  
+  if (!inMenu) { //NOT in the menu stuff
+
+    //----refresh DISPLAY
+  
+    //first check if the display needs to be on or off, and if state changed act accordingly
+    if (digitalRead(enableOledPin) == LOW) { //TODO this one triggers one oled is turned on for communcitation eg with clock
+      if (!oledNeeded) {
+        Serial.println("turn oled off"); delay(10);
+        digitalWrite(enableOledPin, HIGH);
       }
-    }    
+    }
+    else if (oledNeeded) {
+      Serial.println("turn oled on"); delay(10);
+      digitalWrite(enableOledPin, LOW);
+      digitalWrite(enableClockPin, LOW); //needed before the u8g.begin, UpdateDisplay will turn it off
+      u8g.begin();
+      UpdateDisplay(); //its needed because values which trigger the update  (see below) may have not changed.
+    }
+  
+    //then update display if needed
+    if (
+      (oledNeeded) && (!inMenu) && (
+        (humidChange && lastHumid != humid) ||
+        (tempeChange && lastTempe != tempe) ||
+        (minutChange && lastMinut != minut) ||
+        (voltaChange && lastVolta != volta)
+      )
+    )
+    {
+      Serial.println("update"); delay(10);
+      Serial.println(currentScreen); delay(10);
+      if (humidChange) lastHumid = humid;
+      else lastHumid = -99; //this will trigger the next update if we will change to a new type of data to be on the screen
+      if (tempeChange) lastTempe = tempe;
+      else lastTempe = -99;
+      if (minutChange) lastMinut = minut;
+      else lastMinut = 99;
+      if (voltaChange) lastVolta = volta;
+      else lastVolta = -99;
+      UpdateDisplay();
+    }
+  
+    //----------------- refresh DISPLAY
+    
+
+    // SLEEP
+  
+    if ( ((millis() - buttonPushedMillis) >= NONSLEEPTIMEOUT) ) {
+      //we want to sleep as much as we can
+      //this code is needed to update the sleepCounter, which will trigger to update the temperature, time etc. values
+      LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF); //actually 2097.152 mS
+      
+      if (buttonInterrupt) {//not to increase the sleepcounter because sleep has been interrupted
+        buttonInterrupt = false;
+        lastSleepCounterClock = sleepCounter - 10000; //force time update if sleep has been interrupted
+      }
+      else {
+        sleepCounter++;
+        increaseTime(SLEEPTIME);
+        updateSeconMillis=updateSeconMillis-(unsigned long)(SLEEPTIME*100); //difference between real sleep time and increaseTime
+        //Serial.print("s "); Serial.println(secon); delay(10);
+      }
+    }
+  
+    //-------------------- SLEEP
+
+
+    
+    // BUTTON handling
+      if (button1Pushed || button2Pushed) { //button detection outside of the menu = standby, with oled on or off does not matter
+        if (digitalRead(buttonPin3) == LOW) { //we cannot detect button3 alone, just with together an interruptbutton (1 or 2)
+          button3Pushed = true;
+        }
+        if ((millis() - buttonPushedMillis) > DEBOUNCEWAIT) { //no action until debounce time elapsed, because we have to wait for the long button pushes (debouncing rising edge)
+        //Serial.println("cheking buttons"); delay(10);
+        if (longbutton) { //here we have to go in until the user release all the buttons - the action for the long button press is already happened at this time
+          //Serial.println("waiting to release buttons"); delay(10);
+          if (digitalRead(buttonPin1) == HIGH && digitalRead(buttonPin2) == HIGH && digitalRead(buttonPin3) == HIGH) {
+            //Serial.println("all released"); delay(10);
+            longbutton = false;
+            button1Pushed = false;
+            button2Pushed = false;
+            button3Pushed = false;
+            button1PushedMillis = millis(); //not accepting new commands for debounce time (debouncing the release of the button)
+            button2PushedMillis = millis();
+          }
+        }
+        else if ( //we need some actions but no action until all the buttons are released OR longbutton timeout runs out
+          (
+            digitalRead(buttonPin1) == HIGH &&
+            digitalRead(buttonPin2) == HIGH &&
+            digitalRead(buttonPin3) == HIGH
+          ) ||
+          ( (millis() - buttonPushedMillis) > LONGBUTTONWAIT )
+        ) { // ACTION!
+          //Serial.println("ACTION"); delay(10);
+          if ( (millis() - buttonPushedMillis) > LONGBUTTONWAIT ) {
+            //Serial.println("LONG"); delay(10);
+            longbutton = true; //we have to watch the button release debounce to not to trigger button push again, as the user release the button(s) after the action executed
+          }
+          else { //buttons released so we can clear these booleans
+            //Serial.println("SHORT"); delay(10);
+            longbutton = false;          
+          }
+  
+          if (button1Pushed) {
+            if (button2Pushed) {
+              if (button3Pushed) { // all 3 button pushed
+                if (longbutton) { // LONG
+                }
+                else { // SHORT
+                }
+              }
+              else { // button 1 and 2 pushed
+                if (longbutton) { // LONG
+                }
+                else { // SHORT //this one not so stable so dont use :)
+                }
+              }
+            }
+            else {
+              if (button3Pushed) { // button 1 and 3 pushed
+                if (longbutton) { // LONG
+                }
+                else { // SHORT
+                }
+              }
+              else { // only 1 pushed
+                if (longbutton) { // LONG
+                }
+                else { // SHORT
+                  Serial.println("S1"); delay(10);
+                  oledNeeded = !oledNeeded;
+                }
+              }
+            }
+          }
+          else if (button2Pushed) {
+            if (button3Pushed) { // button 2 and 3 pushed
+              if (longbutton) { // LONG
+              }
+              else { // SHORT
+              }
+            }
+            else { // only 2 pushed
+              if (longbutton) { // LONG
+              }
+              else { // SHORT
+                Serial.println("S2"); delay(10);
+                if (oledNeeded) nextScreen();
+              }
+            }
+          }
+          //ACTION ENDS
+          if (longbutton == false) { //if short clear booleans
+            button1Pushed = false;
+            button2Pushed = false;
+            button3Pushed = false;
+            button1PushedMillis = millis(); //not accepting new commands for debounce time (debouncing the release of the button)
+            button2PushedMillis = millis();
+          }
+        }
+      }    
+    }  
+  
+    //------------------ BUTTON handling
+    
   }  
-
-  //------------------ BUTTON handling
+  else { //MENU STUFF - we are in the menu!
+    
+    // we need an exit based on timeout
+  }
+  
+  
 
   
 } //end of main loop
@@ -518,6 +579,7 @@ void drawStrUnit(byte posi, char str[], byte unit) {
   // posi: 1-9 small blocks: 1-top-left, 2-top-center, 3-top-right, 4-middle-left etc. 11-12 big blocks: 11-top, 12-bottom
   // res: 1: 12.3 (temper, humid), 2: 1.23 (volta)
   // unit: 1-C° (alt+0176), 2-F°, 3-%, 4-V, anything else like 0 is nothing
+  // 5-$, 6-€ (alt+0128) which is an = and a ( or C
   u8g.setFont(u8g_font_timR18r);
   byte valueLen = u8g.getStrWidth(str); 
 
@@ -568,12 +630,12 @@ void drawFloatUnit(byte posi, float value, byte unit) {
   drawStrUnit(posi, valueStr, unit);
 }
 
-//5-$, 6-€ (alt+0128) which is an = and a ( or C
+
 void drawTime(byte posi, byte hours, byte minutes) {
-  byte neededCharLength = snprintf(NULL, 0, "%i:%i", hours, minutes);
+  byte neededCharLength = snprintf(NULL, 0, "%i:%02i", hours, minutes);
   char valueStr[1 + neededCharLength]; //!!!THE TWO SPRINTF FORMATS HAVE TO BE THE SAME!!!
   //char valueStr[6];
-  sprintf(valueStr, "%i:%i", hours, minutes);
+  sprintf(valueStr, "%i:%02i", hours, minutes);
   drawStrUnit(posi, valueStr, 0);
 }
 
@@ -586,44 +648,53 @@ void drawWeekDay(byte posi, byte weeks, byte weekdays, boolean weekalso) {
   
 }
 
+
 void nextScreen() {
   if (currentScreen == numberOfScreens - 1) {
-    currentScreen = 0;
+    setCurrentScreen(0);
   }
   else {
-    currentScreen++;
+    setCurrentScreen(currentScreen+1);
   }
-  humidChange = false;
-  tempeChange = false;
-  minutChange = false;
-  voltaChange = false;
-  for (byte i=0 ; i < 12 ; i=i+2){
-    switch (scProps[currentScreen][i]) { //setting a new type of refresh type (*Change) to true will force the the updateing of the screen
-      case 1:
-        tempeChange = true;
-        break;
-      case 2:
-        humidChange = true;
-        break;
-      case 3:
-        voltaChange = true;
-        break;
-      case 4:
-        minutChange = true;
-        break;
+}
+
+
+//SCREEN TYPES = WHAT CAN BE USED IN THE DISPLAY ARRAY (scProps)
+
+void setCurrentScreen(byte desiredSc) {
+  if (desiredSc >= 0 && desiredSc < numberOfScreens) {
+    currentScreen = desiredSc;
+    humidChange = false;
+    tempeChange = false;
+    minutChange = false;
+    voltaChange = false;
+    for (byte i=0 ; i < 12 ; i=i+2){
+      switch (scProps[currentScreen][i]) { //setting a new type of refresh type (*Change) to true will force the the updateing of the screen
+        case 1:
+          tempeChange = true;
+          break;
+        case 2:
+          humidChange = true;
+          break;
+        case 3:
+          voltaChange = true;
+          break;
+        case 4:
+          minutChange = true;
+          break;
+      }
     }
   }
 }
 
 void drawScreen(void) {
-
   for (byte i=0 ; i < 12 ; i=i+2){
     switch (scProps[currentScreen][i]) {
       case 1:
         drawFloatUnit(scProps[currentScreen][i+1], tempe, 1);
         break;
       case 2:
-        drawFloatUnit(scProps[currentScreen][i+1], humid, 0);
+        drawFloatUnit(scProps[currentScreen][i+1], humid, 3);
         break;
       case 3:
         drawFloatUnit(scProps[currentScreen][i+1], volta, 4);
@@ -633,7 +704,7 @@ void drawScreen(void) {
         break;
     }
   }
-
+}
 
 
 /*uint8_t dec2bcd(uint8_t n)
@@ -698,7 +769,7 @@ void drawScreen(void) {
   u8g.setPrintPos(108, 63);
   u8g.print("km");
   */
-}
+
 
 void blink2() {
   digitalWrite(LEDPIN, HIGH); LowPower.powerDown(SLEEP_30MS, ADC_OFF, BOD_OFF);
@@ -719,7 +790,7 @@ byte readHMS(byte &h, byte &m, byte &s) {
 }
 
 
-byte readHMSPure(byte &h, byte &m, byte &s) {
+byte readHMSPure(byte &myH, byte &myM, byte &myS) {
   // return values:
   //0: success
   //1: data too long to fit in transmit buffer
@@ -734,13 +805,13 @@ byte readHMSPure(byte &h, byte &m, byte &s) {
     return e;
   }
   Wire.requestFrom(RTC_ADDR, 3); //request X bytes
-  s = binToDec(Wire.read());
-  m = binToDec(Wire.read());
-  h = binToDec(Wire.read() & B00111111);   //assumes 24hr clock
-  //weekday = Wire.read();
-  //monthday = binToDec(Wire.read());
-  //month = binToDec(Wire.read() & B01111111);  //don't use the Century bit
-  //year = binToDec(Wire.read());
+  myS = binToDec(Wire.read());
+  myM = binToDec(Wire.read());
+  myH = binToDec(Wire.read() & B00111111);   //assumes 24hr clock
+  //myWd = Wire.read();
+  //myMd = binToDec(Wire.read());
+  //myM = binToDec(Wire.read() & B01111111);  //don't use the Century bit
+  //myY = binToDec(Wire.read());
   return 0;
 }
 
@@ -749,12 +820,41 @@ byte binToDec(byte val)
   return (10 * (val >> 4) + (val & 15));
 }
 
+void increaseTime(byte incSeconds) {
+  if (secon + incSeconds < 60) {
+    secon = secon + incSeconds;
+  }
+  else {
+    secon = secon + incSeconds - 60;
+    if (minut + 1 < 60) {
+      minut++;
+    }
+    else {
+      minut = 0;
+      if (houra + 1 < 24) {
+        houra++;
+      }
+      else {
+        houra = 0;
+        lastSleepCounterClock = sleepCounter - 10000; //force update time to get valid day etc
+      }
+    }
+  }  
+}
+
 /*measurements:
 3.962 on the display, with big numbers --> 17 mA
-same with arduino powered off --> 11 mA
+with arduino powered off --> 11 mA
 3.962 on the display, with small numbers --> 9 mA
-same with arduino powered off --> 4 mA
-same with arduino and clock powered off --> 3.3 mA
-powered off ardu and display --> 11uA
+with arduino powered off --> 4 mA
+with arduino and clock powered off --> 3.3 mA
+powered off ardu and display --> 11uA --> battery saving mode
+
+3,60V on the display, with small numbers --> 7.5 mA
+with arduino and clock powered off --> 3.3 mA
+with arduino, display and clock powered off --> 510 uA --> this is noit sleep forever mode, here 1 timer is up to wake up the stuff periodicly
+
+
+
 */
 
