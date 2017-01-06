@@ -1,7 +1,7 @@
 #include "U8glib.h"
-U8GLIB_SSD1306_128X64 u8g(U8G_I2C_OPT_NO_ACK);
+//U8GLIB_SSD1306_128X64 u8g(U8G_I2C_OPT_NO_ACK);
 //U8GLIB_SSD1306_128X64 u8g(U8G_I2C_OPT_NONE|U8G_I2C_OPT_DEV_0);  // I2C / TWI 
-//U8GLIB_SSD1306_128X64 u8g(U8G_I2C_OPT_DEV_0|U8G_I2C_OPT_NO_ACK|U8G_I2C_OPT_FAST); // Fast I2C / TWI 
+U8GLIB_SSD1306_128X64 u8g(U8G_I2C_OPT_DEV_0|U8G_I2C_OPT_NO_ACK|U8G_I2C_OPT_FAST); // Fast I2C / TWI 
 #include "LowPower.h"
 #include <TimeLib.h> //TODO not needed?
 #include <Wire.h>
@@ -46,7 +46,7 @@ Vcc vcc(VccCorrection);
 //LOWVOTLAGE STUFF
 byte lowVoltageCounter = 0;
 float volta = 0;
-#define VOLTACHECKINTERVAL 80 //in seconds
+#define VOLTACHECKINTERVAL 70 //in seconds
 unsigned int lastSleepCounterVolta = 1;
 
 //DHT STUFF
@@ -101,18 +101,30 @@ float lastVolta = -99;
 
 //SLEEP RELATED
 #define NONSLEEPTIMEOUT 3000 
-#define SLEEPTIME 8 //!!in seconds, have to be the same as in the main sleep section!!
+#define SLEEPTIME 2 //in milliseconds
+#if SLEEPTIME == 1
+  #define SLEEPENUM SLEEP_1S
+#elif SLEEPTIME == 2
+  #define SLEEPENUM SLEEP_2S
+#elif SLEEPTIME == 4
+  #define SLEEPENUM SLEEP_4S
+#elif SLEEPTIME == 8
+  #define SLEEPENUM SLEEP_8S
+#else
+  #error valid SLEEPTIME values: 1 2 4 8
+#endif
 unsigned int sleepCounter = 0;
 
 
 //SCREENS - WHAT TYPE WHICH POSITION
-byte numberOfScreens = 4;
+byte numberOfScreens = 5;
 byte currentScreen = 0; //starts from 0
-byte scProps[4][12] = { //TODO sanity check if displays are not covering each other
-  {1, 1, 2, 9, 0, 0, 0, 0, 0, 0, 0, 0},  //this is one screen, with 6 possibilites of data printed. what-where, 1-1 means temperature to position 1; 2-9 means humidity to position 9 etc.
-  {3, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-  {4, 6, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-  {1, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+byte scProps[][12] = { //TODO sanity check if displays are not covering each other
+  {4, 11, 1, 7, 2, 9, 0, 0, 0, 0, 0, 0},  //this is one screen, with 6 possibilites of data printed. what-where, 1-1 means temperature to position 1; 2-9 means humidity to position 9 etc.
+  {1, 1, 2, 3, 4, 8, 0, 0, 0, 0, 0, 0},
+  {4, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+  {1, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+  {3, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 };
 
 //OLED
@@ -159,7 +171,7 @@ void loop() {
 
   //VOLTAGE
    
-  if ((unsigned int)(sleepCounter - lastSleepCounterVolta) >= (unsigned int)(VOLTACHECKINTERVAL / SLEEPTIME)) {
+  if ( (sleepCounter - lastSleepCounterVolta) >= (float)(VOLTACHECKINTERVAL / SLEEPTIME)) {
     lastSleepCounterVolta = sleepCounter;
 
     while (true) {// while loop will be breaked if the voltage is OK. We need this while loop to remeasure voltage after shutdown/power on
@@ -197,7 +209,7 @@ void loop() {
 
   //TEMPERATURE AND HUMIDITY
 
-  if ((unsigned int)(sleepCounter - lastSleepCounterDht) >= (unsigned int)(DHTCHECKINTERVAL / SLEEPTIME)) {
+  if ( (sleepCounter - lastSleepCounterDht) >= (float)(DHTCHECKINTERVAL / SLEEPTIME)) {
     lastSleepCounterDht = sleepCounter;
     Serial.println("dht"); delay(10);
     
@@ -216,10 +228,10 @@ void loop() {
 
   //TIME
   
-  if ( (unsigned int)(sleepCounter - lastSleepCounterClock) >= (unsigned int)(CLOCKCHECKINTERVAL / SLEEPTIME) ) {    
+  if ( (sleepCounter - lastSleepCounterClock) >= (float)(CLOCKCHECKINTERVAL / SLEEPTIME) ) {
     lastSleepCounterClock = sleepCounter;
     Serial.println("time"); delay(10);
-  
+
     if (!readHMS(houra, minut, secon)) {
       //Serial.print("T "); Serial.println(secon); delay(10);
       updateSeconMillis=millis()-500; //this will keep the time uptodate when not in sleep /-500: we are on a bit late anyway
@@ -267,24 +279,7 @@ void loop() {
   
   if (!inMenu) { //NOT in the menu stuff
 
-    //----refresh DISPLAY
-  
-    //first check if the display needs to be on or off, and if state changed act accordingly
-    if (digitalRead(enableOledPin) == LOW) { //TODO this one triggers one oled is turned on for communcitation eg with clock
-      if (!oledNeeded) {
-        Serial.println("turn oled off"); delay(10);
-        digitalWrite(enableOledPin, HIGH);
-      }
-    }
-    else if (oledNeeded) {
-      Serial.println("turn oled on"); delay(10);
-      digitalWrite(enableOledPin, LOW);
-      digitalWrite(enableClockPin, LOW); //needed before the u8g.begin, UpdateDisplay will turn it off
-      u8g.begin();
-      UpdateDisplay(); //its needed because values which trigger the update  (see below) may have not changed.
-    }
-  
-    //then update display if needed
+    //update display if needed
     if (
       (oledNeeded) && (!inMenu) && (
         (humidChange && lastHumid != humid) ||
@@ -293,21 +288,11 @@ void loop() {
         (voltaChange && lastVolta != volta)
       )
     )
-    {
-      Serial.println("update"); delay(10);
-      Serial.println(currentScreen); delay(10);
-      if (humidChange) lastHumid = humid;
-      else lastHumid = -99; //this will trigger the next update if we will change to a new type of data to be on the screen
-      if (tempeChange) lastTempe = tempe;
-      else lastTempe = -99;
-      if (minutChange) lastMinut = minut;
-      else lastMinut = 99;
-      if (voltaChange) lastVolta = volta;
-      else lastVolta = -99;
+    {      
       UpdateDisplay();
     }
   
-    //----------------- refresh DISPLAY
+    //----------------- update DISPLAY
     
 
     // SLEEP
@@ -315,17 +300,18 @@ void loop() {
     if ( ((millis() - buttonPushedMillis) >= NONSLEEPTIMEOUT) ) {
       //we want to sleep as much as we can
       //this code is needed to update the sleepCounter, which will trigger to update the temperature, time etc. values
-      LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF); //actually 2097.152 mS
+      buttonInterrupt = false;
+      LowPower.powerDown(SLEEPENUM, ADC_OFF, BOD_OFF); //actually 2S sleep is 2097.152 mS
       
       if (buttonInterrupt) {//not to increase the sleepcounter because sleep has been interrupted
-        buttonInterrupt = false;
+        //Serial.println("sl INT"); delay(10);
         lastSleepCounterClock = sleepCounter - 10000; //force time update if sleep has been interrupted
       }
       else {
         sleepCounter++;
         increaseTime(SLEEPTIME);
         updateSeconMillis=updateSeconMillis-(unsigned long)(SLEEPTIME*100); //difference between real sleep time and increaseTime
-        //Serial.print("s "); Serial.println(secon); delay(10);
+        Serial.print("s "); Serial.println(secon); delay(10);
       }
     }
   
@@ -335,7 +321,7 @@ void loop() {
     
     // BUTTON handling
       if (button1Pushed || button2Pushed) { //button detection outside of the menu = standby, with oled on or off does not matter
-        if (digitalRead(buttonPin3) == LOW) { //we cannot detect button3 alone, just with together an interruptbutton (1 or 2)
+        if (digitalRead(buttonPin3) == LOW) { //we cannot detect button3 alone (wont break sleep), just with together an interruptbutton (1 or 2)
           button3Pushed = true;
         }
         if ((millis() - buttonPushedMillis) > DEBOUNCEWAIT) { //no action until debounce time elapsed, because we have to wait for the long button pushes (debouncing rising edge)
@@ -397,7 +383,8 @@ void loop() {
                 }
                 else { // SHORT
                   Serial.println("S1"); delay(10);
-                  oledNeeded = !oledNeeded;
+                  if (oledNeeded) turnOLED(false);
+                  else turnOLED(true);
                 }
               }
             }
@@ -461,32 +448,40 @@ void button1Interrupt()
     button1Pushed = true;
   }
   button1PushedMillis = millis();
-  buttonPushedMillis = millis();
+  buttonPushedMillis = millis();  
   buttonInterrupt = true;
 }
 
 //called by the digital pin 3 interrupt on FALLING edge
 void button2Interrupt()
 {
-  if ((millis() - button1PushedMillis) >= DEBOUNCEWAIT) {
+  if ((millis() - button2PushedMillis) >= DEBOUNCEWAIT) {
     button2Pushed = true;
   }
   button2PushedMillis = millis();
-  buttonPushedMillis = millis();
+  buttonPushedMillis = millis();  
   buttonInterrupt = true;
 }
 
 
-
 void UpdateDisplay() {
-  // picture loop
+  lastHumid = humid;
+  lastTempe = tempe;
+  lastMinut = minut;
+  lastVolta = volta;
   digitalWrite(enableClockPin, LOW);
+  UpdateDisplayPure();
+  digitalWrite(enableClockPin, HIGH);
+}
+
+
+void UpdateDisplayPure() {
+  // picture loop
   u8g.firstPage(); 
   do {
     drawScreen();
   }
   while(u8g.nextPage());
-  digitalWrite(enableClockPin, HIGH);
   //Serial.println("display updated"); delay(10);
 }
 
@@ -560,8 +555,10 @@ byte getYbyPosi(byte posi) {
     case 4:
     case 5:
     case 6:
-    case 11:
       return 41;
+      break;
+    case 11:
+      return 35; // the big block floor is at 41 as the second row of small blocks, but as we use 35p high characters in this case we position it UP
       break;
     case 7:
     case 8:
@@ -580,8 +577,14 @@ void drawStrUnit(byte posi, char str[], byte unit) {
   // res: 1: 12.3 (temper, humid), 2: 1.23 (volta)
   // unit: 1-C° (alt+0176), 2-F°, 3-%, 4-V, anything else like 0 is nothing
   // 5-$, 6-€ (alt+0128) which is an = and a ( or C
-  u8g.setFont(u8g_font_timR18r);
+  if (posi > 10 ) {
+    u8g.setFont(u8g_font_osb35n);
+  }
+  else {
+    u8g.setFont(u8g_font_timR18r);
+  }
   byte valueLen = u8g.getStrWidth(str); 
+  //Serial.println(valueLen); delay(10);
 
   //draw the unit of meas.
   byte unitLen = 0;  // max lenght is 20 without the space pixel at the end 
@@ -619,7 +622,12 @@ void drawStrUnit(byte posi, char str[], byte unit) {
 
   //draw the number (value) itself
   //we need the unit of meas. lenght to draw the number
-  u8g.setFont(u8g_font_timR18r);
+  if (posi > 10 ) {
+    u8g.setFont(u8g_font_osb35n);
+  }
+  else {
+    u8g.setFont(u8g_font_timR18r);
+  }
   u8g.setPrintPos(getXbyPosi(posi, valueLen, unitLen, false), getYbyPosi(posi));
   u8g.print(str);  
 }
@@ -684,6 +692,7 @@ void setCurrentScreen(byte desiredSc) {
           break;
       }
     }
+    UpdateDisplay(); //force refresh
   }
 }
 
@@ -784,9 +793,10 @@ byte readHMS(byte &h, byte &m, byte &s) {
   digitalWrite(enableClockPin, LOW);
   LowPower.powerDown(SLEEP_15MS, ADC_OFF, BOD_OFF); //clock module needs some time to wake up
   if (!oledNeeded) digitalWrite(enableOledPin, LOW);
-  return readHMSPure(h, m, s);
+  byte res = readHMSPure(h, m, s);
   if (!oledNeeded) digitalWrite(enableOledPin, HIGH); //TODO what if interrupt changes this in the meantime
   digitalWrite(enableClockPin, HIGH);
+  return res;
 }
 
 
@@ -842,17 +852,40 @@ void increaseTime(byte incSeconds) {
   }  
 }
 
-/*measurements:
+void turnOLED(boolean desStatus) {
+  if (desStatus) {
+    Serial.println("ON"); delay(10);
+    oledNeeded = true;
+    digitalWrite(enableOledPin, LOW);    
+    digitalWrite(enableClockPin, LOW); //needed before the u8g.begin, UpdateDisplay will turn it off
+    u8g.begin();
+    UpdateDisplay(); //its needed because values which trigger the update may have not changed.
+  }
+  else if (oledNeeded) {
+    Serial.println("OFF"); delay(10);
+    oledNeeded = false;
+    digitalWrite(enableOledPin, HIGH);
+  }
+}
+
+/*current measurements:
 3.962 on the display, with big numbers --> 17 mA
 with arduino powered off --> 11 mA
 3.962 on the display, with small numbers --> 9 mA
 with arduino powered off --> 4 mA
 with arduino and clock powered off --> 3.3 mA
-powered off ardu and display --> 11uA --> battery saving mode
+
 
 3,60V on the display, with small numbers --> 7.5 mA
 with arduino and clock powered off --> 3.3 mA
-with arduino, display and clock powered off --> 510 uA --> this is noit sleep forever mode, here 1 timer is up to wake up the stuff periodicly
+
+23.4oC 42,6% and with big 16:52 on the display --> 17 mA
+with arduino and clock powered off --> 12,9 mA
+
+13,35mA
+
+
+powered off ardu and display (in low voltage battery protection mode or between sleeps) --> 11uA (slowly (10-20sec) reach from 30uA
 
 
 
