@@ -24,14 +24,15 @@
 * check voltage measured by the arduino by pushing the middle button (eg. 3.54 V)
 * change correction value in the arduino code: measured/reported: #define VCORR 3.93/3.54;
 
-.Features software version v0.2
-* button 1 short press put device in sleep (almost no power consumption)
+.Features software version v0.3
+* button 1 short press put device in sleep --> almost no power consumption (10-20uA)
 * power off automatically if the battery reading is below 3.5V (power on with the left or the middle button)
-* change screen with short press of the middle button (show temperature, humidity and battery voltage)
-* on time is more then 100 hours
+* change screen with short press of the middle button --> show temperature, humidity, time and battery voltage with different layouts (easy to configurable in the arduino code)
+* on time is more then 100 hours --> depends on the ammount of data (pixels) the screen have to display
 
 .Comments
-* removing the resistor on the DS3231 clock module is needed if you use it with a CR non-rechargeable battery as I do
+* removing the resistor on the DS3231 clock module is needed if you use it with a CR3216 non-rechargeable battery as I do
 * make sure you are using the included DHT library. Without that the temperature/humidity measurements will be slow, as the un-modded library is using millis() to measure time. If the un-modded library got a request within 2 seconds it sends back the last measurement without actually measuring anything. (DHT sensor measure interval is 2 seconds.) The problem is that with the power-off of the arduino the timers are not counting so millis() is measuring only the on-time, so the old library thinks that we are still in the 2 seconds window even if the arduino was sleeping for minutes.
 * on the lithium charger module there is a resistor which tells the module how big the charger current should be. Usually these modules are shipped with a resistor for the 18650 batteries with 1A charging current. Changing the resistor to 3R6 will reduce the charging current to an acceptable level for the capacity of the 14500 battery.
 * I used a few windings of the CAT5 wire for the contact points of the battery holder
+* I used a hot glue gun to fix the components into the case and CAT5 Ethernet wires the connect the pins. To save space I removed all metal pins from the boards like the oled display or the clock module.
