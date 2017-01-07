@@ -607,7 +607,7 @@ void drawStrUnit(byte posi, char str[], char unit[]) {
   // unit: 1-C° (alt+0176), 2-F°, 3-%, 4-V, anything else like 0 is nothing
   // 5-$, 6-€ (alt+0128) which is an = and a ( or C
   if (posi > 10 ) {
-    u8g.setFont(u8g_font_osb35n);
+    u8g.setFont(u8g_font_osr35n);
   }
   else {
     u8g.setFont(u8g_font_timR18r);
@@ -631,7 +631,7 @@ void drawStrUnit(byte posi, char str[], char unit[]) {
   //we need the unit of meas. lenght to draw the number
   if (valueLen != 0) {
     if (posi > 10 ) {
-      u8g.setFont(u8g_font_osb35n);
+      u8g.setFont(u8g_font_osr35n); //osb35 is good, TODO measure current!
     }
     else {
       u8g.setFont(u8g_font_timR18r);
