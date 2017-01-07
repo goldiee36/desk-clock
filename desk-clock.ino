@@ -488,17 +488,12 @@ void button2Interrupt()
 
 // DISPLAY
 
-void UpdateDisplay() {
+void UpdateDisplay() { //assumes that display has been initalized (powered on and u8g.begin was issued once)
   lastHumid = humid;
   lastTempe = tempe;
   lastMinut = minut;
   lastVolta = volta;
   digitalWrite(enableClockPin, LOW);
-  UpdateDisplayPure();
-  digitalWrite(enableClockPin, HIGH);
-}
-
-void UpdateDisplayPure() { //assumes that display has been initalized (powered on and u8g.begin was issued once)
   // picture loop
   u8g.firstPage(); 
   do {
@@ -506,14 +501,7 @@ void UpdateDisplayPure() { //assumes that display has been initalized (powered o
   }
   while(u8g.nextPage());
   //Serial.println("display updated"); delay(10);
-}
-
-void lowVoltageWarningDisplay(float oldv, period_t period) { //TODO print the old battery value
-  printWarningDisplay("Battery was low", period);
-}
-
-void lowVoltageWarningDisplay(period_t period) {
-  printWarningDisplay("After shutdown", period);
+  digitalWrite(enableClockPin, HIGH);
 }
 
 void printWarningDisplay(char message[], period_t period) {  //assumes that display has been initalized (powered on and u8g.begin was issued once)
