@@ -46,8 +46,9 @@ Vcc vcc(VccCorrection);
 //LOWVOTLAGE STUFF
 byte lowVoltageCounter = 0;
 float volta = 0;
-#define VOLTACHECKINTERVAL 70 //in seconds
+#define VOLTACHECKINTERVAL 2 //in seconds
 unsigned int lastSleepCounterVolta = 1;
+boolean shutDownHappened = false;
 
 //DHT STUFF
 float tempe = 0;
@@ -69,7 +70,7 @@ unsigned int lastSleepCounterClock = 1;
 unsigned long updateSeconMillis = 0 ;
 
 //MENU STUFF
-#define MENUTIMEOUT 5000 //in milliseconds //has to be bigger then FAULTYBUTTONWAIT
+#define MENUTIMEOUT 10000 //in milliseconds
 boolean inMenu = false;
 
 //DEBOUNCE BUTTONS
@@ -85,7 +86,6 @@ volatile boolean buttonInterrupt = false;
 volatile boolean button1Pushed = false;
 volatile boolean button2Pushed = false;
 volatile boolean button3Pushed = false;
-#define FAULTYBUTTONWAIT 8000 //in milliseconds
 #define LONGBUTTONWAIT 2000 //in milliseconds
 boolean longbutton = false;
 
@@ -129,6 +129,7 @@ byte scProps[][12] = { //TODO sanity check if displays are not covering each oth
 
 //OLED
 boolean oledNeeded = true;
+boolean forceUpdateDisplay = false;
 
 
 void setup() {
@@ -176,29 +177,48 @@ void loop() {
 
     while (true) {// while loop will be breaked if the voltage is OK. We need this while loop to remeasure voltage after shutdown/power on
       delay(10); //needed because of the voltage meas after sleep
-      Serial.println("volt"); delay(10);
+      //Serial.println("volt"); delay(10);      
+      float oldvolta = volta;
       volta = vcc.Read_Volts();
-      //Serial.println(volta); delay(10);
+      if (shutDownHappened) { //display old voltage (why the shutdown happened) and the new one
+        oledNeeded = true;
+        digitalWrite(enableOledPin, LOW);
+        digitalWrite(enableClockPin, LOW); //needed before the u8g.begin, warningDisplay will turn it off
+        u8g.begin(); //prepare display
+        printWarningDisplay("Battery was low", SLEEP_2S); //bit longer time to the user to read the display
+        //depends on the new voltage we will shutdown again or stay alive and exit the while
+      }
   
       if (volta < 3.5 ) {
-        lowVoltageCounter = lowVoltageCounter < 250 ? lowVoltageCounter + 1 : lowVoltageCounter; //only increase the counter if value less then 250
-        if (lowVoltageCounter > 3 || volta < 3 ) { //we need three measurement under 3.5 V OR one measurement under 3V to shut down
-          blink2(); //two fast blink as low voltage   //todo to change OLED warning
-          delay(1000); //some time for the user to read the display, then shutdown. We need delay here and not sleep, because sleep is interruptable
+        if (volta < 3) //shut down immediately
+          lowVoltageCounter = 250;
+        else
+          lowVoltageCounter = lowVoltageCounter < 250 ? lowVoltageCounter + 1 : lowVoltageCounter; //only increase the counter if value less then 250
+
+        if (lowVoltageCounter > 3) { //we need three measurement under 3.5 V OR one measurement under 3V to shut down
+          if (oledNeeded) Serial.println("oled"); delay(10);   
+          //OLED warning - include some sleep time for the user to read the display - but probably wont notice here at that point
+          if (shutDownHappened) printWarningDisplay("Batt. still low!!!", SLEEP_2S);
+          else printWarningDisplay("Battery low!!!", SLEEP_1S);
           digitalWrite(enableOledPin, HIGH);
           digitalWrite(enableClockPin, HIGH);
+          shutDownHappened = true;
           LowPower.powerDown(SLEEP_FOREVER, ADC_OFF, BOD_OFF); //low voltage lithium battery protection --> interrupt button will wake up and continue from here
           //someone pushed the button. exit from the while loop only if the voltage is above 3.5V
-          digitalWrite(enableOledPin, LOW);
-          digitalWrite(enableClockPin, LOW);
-          u8g.begin(); //prepare display if update will be needed
           //back to the beginning of the while to re-measure the voltage
         }
-        else {
+        else { //only small voltage violation, just counter increased          
           break; //exit while
         }
       }
-      else {
+      else { //no voltage violation, clear lowVoltageCounter
+        if (shutDownHappened) {
+          //if we are leaving the while we need this to remeasure stuff before updating the display
+          lastSleepCounterClock = sleepCounter - 10000; //force time update after leaving lowVoltage code
+          lastSleepCounterDht = sleepCounter - 10000; //force dht updateafter leaving lowVoltage code
+          forceUpdateDisplay = true; //after measurements the display will be updated/turned on (after leaving lowVoltage code)
+          shutDownHappened = false;
+        }        
         lowVoltageCounter = 0;
         break; //exit while
       }
@@ -211,7 +231,7 @@ void loop() {
 
   if ( (sleepCounter - lastSleepCounterDht) >= (float)(DHTCHECKINTERVAL / SLEEPTIME)) {
     lastSleepCounterDht = sleepCounter;
-    Serial.println("dht"); delay(10);
+    //Serial.println("dht"); delay(10);
     
     if (dht.read()) { //read success
       humid = dht.getHumidity();
@@ -230,7 +250,7 @@ void loop() {
   
   if ( (sleepCounter - lastSleepCounterClock) >= (float)(CLOCKCHECKINTERVAL / SLEEPTIME) ) {
     lastSleepCounterClock = sleepCounter;
-    Serial.println("time"); delay(10);
+    //Serial.println("time"); delay(10);
 
     if (!readHMS(houra, minut, secon)) {
       //Serial.print("T "); Serial.println(secon); delay(10);
@@ -250,7 +270,7 @@ void loop() {
   //timekeeping when not in sleep
   if ((millis() - updateSeconMillis) > 1000) {
     increaseTime(1);
-    Serial.print("A "); Serial.println(secon); delay(10);
+    //Serial.print("A "); Serial.println(secon); delay(10);
     updateSeconMillis=millis();
   }
 
@@ -281,15 +301,16 @@ void loop() {
 
     //update display if needed
     if (
-      (oledNeeded) && (!inMenu) && (
+      forceUpdateDisplay || ((oledNeeded) && (!inMenu) && (
         (humidChange && lastHumid != humid) ||
         (tempeChange && lastTempe != tempe) ||
         (minutChange && lastMinut != minut) ||
         (voltaChange && lastVolta != volta)
-      )
+      ))
     )
-    {      
+    {
       UpdateDisplay();
+      forceUpdateDisplay = false;
     }
   
     //----------------- update DISPLAY
@@ -311,7 +332,7 @@ void loop() {
         sleepCounter++;
         increaseTime(SLEEPTIME);
         updateSeconMillis=updateSeconMillis-(unsigned long)(SLEEPTIME*100); //difference between real sleep time and increaseTime
-        Serial.print("s "); Serial.println(secon); delay(10);
+        //Serial.print("s "); Serial.println(secon); delay(10);
       }
     }
   
@@ -382,7 +403,7 @@ void loop() {
                 if (longbutton) { // LONG
                 }
                 else { // SHORT
-                  Serial.println("S1"); delay(10);
+                  //Serial.println("S1"); delay(10);
                   if (oledNeeded) turnOLED(false);
                   else turnOLED(true);
                 }
@@ -400,7 +421,7 @@ void loop() {
               if (longbutton) { // LONG
               }
               else { // SHORT
-                Serial.println("S2"); delay(10);
+                //Serial.println("S2"); delay(10);
                 if (oledNeeded) nextScreen();
               }
             }
@@ -464,6 +485,9 @@ void button2Interrupt()
 }
 
 
+
+// DISPLAY
+
 void UpdateDisplay() {
   lastHumid = humid;
   lastTempe = tempe;
@@ -474,8 +498,7 @@ void UpdateDisplay() {
   digitalWrite(enableClockPin, HIGH);
 }
 
-
-void UpdateDisplayPure() {
+void UpdateDisplayPure() { //assumes that display has been initalized (powered on and u8g.begin was issued once)
   // picture loop
   u8g.firstPage(); 
   do {
@@ -484,6 +507,44 @@ void UpdateDisplayPure() {
   while(u8g.nextPage());
   //Serial.println("display updated"); delay(10);
 }
+
+void lowVoltageWarningDisplay(float oldv, period_t period) { //TODO print the old battery value
+  printWarningDisplay("Battery was low", period);
+}
+
+void lowVoltageWarningDisplay(period_t period) {
+  printWarningDisplay("After shutdown", period);
+}
+
+void printWarningDisplay(char message[], period_t period) {  //assumes that display has been initalized (powered on and u8g.begin was issued once)
+  //TODO prepare multi line print, or position parameter (overloaded function to support old code)
+  digitalWrite(enableClockPin, LOW);
+  u8g.firstPage(); 
+  do {
+    drawStrUnit(11, " ", message);
+  }
+  while(u8g.nextPage());
+  digitalWrite(enableClockPin, HIGH);
+  LowPower.powerDown(period, ADC_OFF, BOD_OFF);
+}
+
+
+void turnOLED(boolean desStatus) { 
+  if (desStatus) {
+    //Serial.println("ON"); delay(10);
+    oledNeeded = true;
+    digitalWrite(enableOledPin, LOW);    
+    digitalWrite(enableClockPin, LOW); //needed before the u8g.begin, UpdateDisplay will turn it off
+    u8g.begin();
+    UpdateDisplay(); //its needed because values which trigger the update may have not changed.
+  }
+  else {
+    //Serial.println("OFF"); delay(10);
+    oledNeeded = false;
+    digitalWrite(enableOledPin, HIGH);
+  }
+}
+
 
 byte getXbyPosi(byte posi, byte valueLength, byte unitLength, boolean forUnit) {
   //valueLength: eg.: float like 12.3 or 1.23 --> 42 (with trailing space pixel), or 1.2 --> 30
@@ -513,38 +574,6 @@ byte getXbyPosi(byte posi, byte valueLength, byte unitLength, boolean forUnit) {
   return forUnit ? Xpos + valueLength : Xpos ;
 }
 
-byte getXbyPosi2(byte posi, boolean shortNumber, byte unitLength, boolean forUnit) {
-  //shortnumber: when resoultion is 1 digit ( x.y ), but the whole part of the number is only 1 digit long (like below 10)
-  //if forUnit is true we need the X position for printing the unit of meas.
-  byte returny = 0;
-  byte plusForUnit = 42;
-  switch (posi) {
-    case 1:
-    case 4:
-    case 7:
-      plusForUnit -= shortNumber ? 12 : 0 ; //full small char left
-      returny = 0;
-      break;
-    case 2:
-    case 5:
-    case 8:
-      plusForUnit -= shortNumber ? 6 : 0 ; //half small char left
-      returny = shortNumber ? 39 + ((20 - unitLength) / 2) : 33 + ((20 - unitLength) / 2) ; //half small char right
-      break;
-    case 3:
-    case 6:
-    case 9:
-      returny = shortNumber ? 78 + (20 - unitLength) : 66 + (20 - unitLength) ; //full small char right
-      break;
-    case 11:
-    case 12:
-      plusForUnit -= shortNumber ? 20 : 0 ; //half big char left
-      returny = shortNumber ? 14 + ((40 - unitLength) / 2) : 0 + ((40 - unitLength) / 2) ; //half big char right //todo max big unit length is really 40?
-      break;
-  }
-  return forUnit ? returny + plusForUnit : returny ;
-}
-
 byte getYbyPosi(byte posi) {
   switch (posi) {
     case 1:
@@ -572,7 +601,7 @@ byte getYbyPosi(byte posi) {
   }
 }
 
-void drawStrUnit(byte posi, char str[], byte unit) {
+void drawStrUnit(byte posi, char str[], char unit[]) {
   // posi: 1-9 small blocks: 1-top-left, 2-top-center, 3-top-right, 4-middle-left etc. 11-12 big blocks: 11-top, 12-bottom
   // res: 1: 12.3 (temper, humid), 2: 1.23 (volta)
   // unit: 1-C° (alt+0176), 2-F°, 3-%, 4-V, anything else like 0 is nothing
@@ -583,56 +612,36 @@ void drawStrUnit(byte posi, char str[], byte unit) {
   else {
     u8g.setFont(u8g_font_timR18r);
   }
-  byte valueLen = u8g.getStrWidth(str); 
+  byte valueLen = 0;
+  if (str != " ") {
+    valueLen = u8g.getStrWidth(str);
+  }
   //Serial.println(valueLen); delay(10);
 
-  //draw the unit of meas.
-  byte unitLen = 0;  // max lenght is 20 without the space pixel at the end 
-  switch (unit) {
-    case 1: {
-      u8g.setFont(u8g_font_timR14);      
-      char unitStr[3] = " C";
-      unitStr[0] = 176; //this is the degree sign
-      unitLen = u8g.getStrWidth(unitStr) - 1; //getStrWidth(unitstr) is 20 but last pixel column is empty
-      u8g.setPrintPos(getXbyPosi(posi, valueLen, unitLen, true), getYbyPosi(posi));    
-      u8g.print(unitStr);
-      }
-      break;
-    case 3: {
-      u8g.setFont(u8g_font_timR14);      
-      char unitStr[2] = "%";
-      unitLen = u8g.getStrWidth(unitStr) - 1; //getStrWidth(unitstr) is 15 but last pixel column is empty
-      u8g.setPrintPos(getXbyPosi(posi, valueLen, unitLen, true), getYbyPosi(posi));    
-      u8g.print(unitStr);
-      }
-      break;
-    case 4: {
-      u8g.setFont(u8g_font_timR14);      
-      char unitStr[2] = "V"; 
-      unitLen = u8g.getStrWidth(unitStr) - 1; //getStrWidth(unitstr) is 14 but last pixel column is empty
-      u8g.setPrintPos(getXbyPosi(posi, valueLen, unitLen, true), getYbyPosi(posi));    
-      u8g.print(unitStr);  
-      //Serial.print("len "); Serial.println(u8g.getStrWidth(unitstr)); delay(10);
-      }
-      break;
-    default:
-      unitLen = 0;
-      break;
+  byte unitLen = 0;  
+  //draw the unit of meas.  
+  if (unit != " ") {
+    u8g.setFont(u8g_font_timR14);
+    unitLen = u8g.getStrWidth(unit) - 1;  //without the space pixel at the end
+    u8g.setPrintPos(getXbyPosi(posi, valueLen, unitLen, true), getYbyPosi(posi));    
+    u8g.print(unit);
   }
 
   //draw the number (value) itself
   //we need the unit of meas. lenght to draw the number
-  if (posi > 10 ) {
-    u8g.setFont(u8g_font_osb35n);
+  if (valueLen != 0) {
+    if (posi > 10 ) {
+      u8g.setFont(u8g_font_osb35n);
+    }
+    else {
+      u8g.setFont(u8g_font_timR18r);
+    }
+    u8g.setPrintPos(getXbyPosi(posi, valueLen, unitLen, false), getYbyPosi(posi));
+    u8g.print(str);
   }
-  else {
-    u8g.setFont(u8g_font_timR18r);
-  }
-  u8g.setPrintPos(getXbyPosi(posi, valueLen, unitLen, false), getYbyPosi(posi));
-  u8g.print(str);  
 }
 
-void drawFloatUnit(byte posi, float value, byte unit) {
+void drawFloatUnit(byte posi, float value, char unit[]) {
   char valueStr[5];
   dtostrf(value, 3, value < 9.95 && value >= 0 ? 2 : 1, valueStr); //TODO value >= 0 are you sure?
   drawStrUnit(posi, valueStr, unit);
@@ -644,7 +653,7 @@ void drawTime(byte posi, byte hours, byte minutes) {
   char valueStr[1 + neededCharLength]; //!!!THE TWO SPRINTF FORMATS HAVE TO BE THE SAME!!!
   //char valueStr[6];
   sprintf(valueStr, "%i:%02i", hours, minutes);
-  drawStrUnit(posi, valueStr, 0);
+  drawStrUnit(posi, valueStr, " ");
 }
 
 void drawDate(byte posi, byte months, byte days, boolean dayfirst) {
@@ -667,8 +676,7 @@ void nextScreen() {
 }
 
 
-//SCREEN TYPES = WHAT CAN BE USED IN THE DISPLAY ARRAY (scProps)
-
+//SCREEN TYPES, WHAT CAN BE USED IN THE DISPLAY ARRAY (scProps)
 void setCurrentScreen(byte desiredSc) {
   if (desiredSc >= 0 && desiredSc < numberOfScreens) {
     currentScreen = desiredSc;
@@ -699,14 +707,19 @@ void setCurrentScreen(byte desiredSc) {
 void drawScreen(void) {
   for (byte i=0 ; i < 12 ; i=i+2){
     switch (scProps[currentScreen][i]) {
-      case 1:
-        drawFloatUnit(scProps[currentScreen][i+1], tempe, 1);
+      case 1: {
+        char unitStr[3] = " C";
+        unitStr[0] = 176;
+        drawFloatUnit(scProps[currentScreen][i+1], tempe, unitStr);
+        }
         break;
-      case 2:
-        drawFloatUnit(scProps[currentScreen][i+1], humid, 3);
+      case 2: {
+        drawFloatUnit(scProps[currentScreen][i+1], humid, "%");
+        }
         break;
-      case 3:
-        drawFloatUnit(scProps[currentScreen][i+1], volta, 4);
+      case 3: { 
+        drawFloatUnit(scProps[currentScreen][i+1], volta, "V");
+        }
         break;
       case 4:
         drawTime(scProps[currentScreen][i+1], houra, minut);
@@ -715,6 +728,7 @@ void drawScreen(void) {
   }
 }
 
+// ----------------------------- DISPLAY
 
 /*uint8_t dec2bcd(uint8_t n)
 {
@@ -794,7 +808,7 @@ byte readHMS(byte &h, byte &m, byte &s) {
   LowPower.powerDown(SLEEP_15MS, ADC_OFF, BOD_OFF); //clock module needs some time to wake up
   if (!oledNeeded) digitalWrite(enableOledPin, LOW);
   byte res = readHMSPure(h, m, s);
-  if (!oledNeeded) digitalWrite(enableOledPin, HIGH); //TODO what if interrupt changes this in the meantime
+  if (!oledNeeded) digitalWrite(enableOledPin, HIGH);
   digitalWrite(enableClockPin, HIGH);
   return res;
 }
@@ -852,21 +866,6 @@ void increaseTime(byte incSeconds) {
   }  
 }
 
-void turnOLED(boolean desStatus) {
-  if (desStatus) {
-    Serial.println("ON"); delay(10);
-    oledNeeded = true;
-    digitalWrite(enableOledPin, LOW);    
-    digitalWrite(enableClockPin, LOW); //needed before the u8g.begin, UpdateDisplay will turn it off
-    u8g.begin();
-    UpdateDisplay(); //its needed because values which trigger the update may have not changed.
-  }
-  else if (oledNeeded) {
-    Serial.println("OFF"); delay(10);
-    oledNeeded = false;
-    digitalWrite(enableOledPin, HIGH);
-  }
-}
 
 /*current measurements:
 3.962 on the display, with big numbers --> 17 mA
