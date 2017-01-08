@@ -119,7 +119,7 @@ unsigned int sleepCounter = 0;
 
 
 //SCREENS - WHAT TYPE WHICH POSITION
-byte numberOfScreens = 5;
+byte numberOfScreens = 5; //TODO use sizeof array
 byte currentScreen = 0; //starts from 0
 byte scProps[][12] = { //TODO sanity check if displays are not covering each other
   {4, 11, 1, 7, 2, 9, 0, 0, 0, 0, 0, 0},  //this is one screen, with 6 possibilites of data printed. what-where, 1-1 means temperature to position 1; 2-9 means humidity to position 9 etc.
@@ -127,6 +127,22 @@ byte scProps[][12] = { //TODO sanity check if displays are not covering each oth
   {4, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
   {1, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
   {3, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+};
+byte autoOnOff[][2] = {
+  {8, 30},  //sunday on times, hour, minute
+  {8, 30}, //sunday off times
+  {4, 5}, //mon on
+  {1, 5}, //mon off etc.
+  {3, 3}, //thu
+  {3, 3},
+  {3, 3}, //wed
+  {3, 3},
+  {3, 3}, //thu
+  {3, 3},
+  {3, 3}, //fri
+  {3, 3},
+  {3, 3}, //sat
+  {3, 3},
 };
 
 //OLED
@@ -254,7 +270,7 @@ void loop() {
     lastSleepCounterClock = sleepCounter;
     //Serial.println("time"); delay(10);
 
-    if (!readHMS(houra, minut, secon)) {
+    if (!readTime(secon, minut, houra, weday, moday, monta)) {
       //Serial.print("T "); Serial.println(secon); delay(10);
       updateSeconMillis=millis()-500; //this will keep the time uptodate when not in sleep /-500: we are on a bit late anyway
     }
@@ -275,6 +291,19 @@ void loop() {
     //Serial.print("A "); Serial.println(secon); delay(10);
     updateSeconMillis=millis();
   }
+
+  /*if (oledNeeded) {  //TODO what if in menu?
+    if (weday == autoOnOff[weday*2][]
+  }
+  else {
+    if (weday == autoOnOff[(weday-1)*2][]
+  }*/
+
+  //auto ON OFF
+  Serial.print("A "); Serial.println(monta); delay(10);
+  Serial.print("B "); Serial.println(moday); delay(10);
+  Serial.print("C "); Serial.println(weday); delay(10);
+  Serial.print("D "); Serial.println(minut); delay(10);
 
   // --------------------------- TIME
 
@@ -793,18 +822,18 @@ void blink2() {
 
 
 
-byte readHMS(byte &h, byte &m, byte &s) {
+byte readTime(byte &myS, byte &myM, byte &myH, byte &myWd, byte &myMd, byte &myMo) {
   digitalWrite(enableClockPin, LOW);
   LowPower.powerDown(SLEEP_15MS, ADC_OFF, BOD_OFF); //clock module needs some time to wake up
   if (!oledNeeded) digitalWrite(enableOledPin, LOW);
-  byte res = readHMSPure(h, m, s);
+  byte res = readTimePure(myS, myM, myH, myWd, myMd, myMo);
   if (!oledNeeded) digitalWrite(enableOledPin, HIGH);
   digitalWrite(enableClockPin, HIGH);
   return res;
 }
 
 
-byte readHMSPure(byte &myH, byte &myM, byte &myS) {
+byte readTimePure(byte &myS, byte &myM, byte &myH, byte &myWd, byte &myMd, byte &myMo) {
   // return values:
   //0: success
   //1: data too long to fit in transmit buffer
@@ -818,14 +847,16 @@ byte readHMSPure(byte &myH, byte &myM, byte &myS) {
   if ( byte e = Wire.endTransmission() ) {
     return e;
   }
-  Wire.requestFrom(RTC_ADDR, 3); //request X bytes
+  Wire.requestFrom(RTC_ADDR, 6); //request X bytes
   myS = binToDec(Wire.read());
   myM = binToDec(Wire.read());
   myH = binToDec(Wire.read() & B00111111);   //assumes 24hr clock
-  //myWd = Wire.read();
-  //myMd = binToDec(Wire.read());
-  //myM = binToDec(Wire.read() & B01111111);  //don't use the Century bit
-  //myY = binToDec(Wire.read());
+  myWd = Wire.read();
+  myMd = binToDec(Wire.read());
+  myMo = binToDec(Wire.read() & B01111111);  //don't use the Century bit
+  //myMd = Wire.read();
+  //myMo = Wire.read();  //don't use the Century bit
+  //myYe = binToDec(Wire.read());
   return 0;
 }
 
