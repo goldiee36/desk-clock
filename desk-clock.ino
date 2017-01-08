@@ -3,7 +3,6 @@
 //U8GLIB_SSD1306_128X64 u8g(U8G_I2C_OPT_NONE|U8G_I2C_OPT_DEV_0);  // I2C / TWI 
 U8GLIB_SSD1306_128X64 u8g(U8G_I2C_OPT_DEV_0|U8G_I2C_OPT_NO_ACK|U8G_I2C_OPT_FAST); // Fast I2C / TWI 
 #include "LowPower.h"
-#include <TimeLib.h> //TODO not needed?
 #include <Wire.h>
 #include "DHT.h" //Modified version of the library!! Original library uses millis/delay to ensure 2 seconds elapses between the measures - with power down it is not working
 #include <Vcc.h>
@@ -19,6 +18,10 @@ U8GLIB_SSD1306_128X64 u8g(U8G_I2C_OPT_DEV_0|U8G_I2C_OPT_NO_ACK|U8G_I2C_OPT_FAST)
   //timR12 C: 11, C°: 18
   //timR14 C: 13, C°: 20
   //u8g_font_helvB18r 13p per number (12p + 1 spaceing), 6p per space
+
+//MENU: timR14 --> 3 row content, above this the history what the buttons do (eg: left:back, mid:down, right: enter), then above and below the 3 row content leave some space to indicate if there are more lines above or below or both
+// numeric value change: left OK, middle minus, right plus
+//edit screen: after selecting screen number a layout appears: left button accepts, middle change frame selection (posi 1,2, etc), right change content (value, including nothing)
 
 
 //digital pins
@@ -46,7 +49,7 @@ Vcc vcc(VccCorrection);
 //LOWVOTLAGE STUFF
 byte lowVoltageCounter = 0;
 float volta = 0;
-#define VOLTACHECKINTERVAL 2 //in seconds
+#define VOLTACHECKINTERVAL 85 //in seconds
 unsigned int lastSleepCounterVolta = 1;
 boolean shutDownHappened = false;
 
@@ -57,7 +60,6 @@ float humid = 0;
 unsigned int lastSleepCounterDht = 1;
 
 //CLOCK MODULE STUFF
-tmElements_t timeElement;
 int yeara = 1960;
 byte monta = 88;
 byte moday = 88;
@@ -168,7 +170,7 @@ void setup() {
 
 void loop() {
 
-  //UPDATE MAIN VALUES
+  //UPDATE MAIN VALUES //updating when sleepcounter increase.TODO maybe add some time based update also so update also when in menu
 
   //VOLTAGE
    
@@ -198,8 +200,8 @@ void loop() {
         if (lowVoltageCounter > 3) { //we need three measurement under 3.5 V OR one measurement under 3V to shut down
           if (oledNeeded) Serial.println("oled"); delay(10);   
           //OLED warning - include some sleep time for the user to read the display - but probably wont notice here at that point
-          if (shutDownHappened) printWarningDisplay("Batt. still low!!!", SLEEP_2S);
-          else printWarningDisplay("Battery low!!!", SLEEP_1S);
+          if (shutDownHappened) printWarningDisplay("Batt. still low!", SLEEP_2S);
+          else printWarningDisplay("Battery low!", SLEEP_1S);
           digitalWrite(enableOledPin, HIGH);
           digitalWrite(enableClockPin, HIGH);
           shutDownHappened = true;
