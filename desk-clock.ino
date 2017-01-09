@@ -56,7 +56,7 @@ boolean shutDownHappened = false;
 //DHT STUFF
 float tempe = 0;
 float humid = 0;
-#define DHTCHECKINTERVAL 20 //in seconds
+#define DHTCHECKINTERVAL 35 //in seconds
 unsigned int lastSleepCounterDht = 1;
 
 //CLOCK MODULE STUFF
@@ -70,6 +70,7 @@ byte secon = 88;
 #define CLOCKCHECKINTERVAL 90 //in seconds
 unsigned int lastSleepCounterClock = 1;
 unsigned long updateSeconMillis = 0 ;
+byte lastAutoOnOffMinute = 100; // value 100 means enable
 
 //MENU STUFF
 #define MENUTIMEOUT 10000 //in milliseconds
@@ -129,20 +130,20 @@ byte scProps[][12] = { //TODO sanity check if displays are not covering each oth
   {3, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 };
 byte autoOnOff[][2] = {
-  {8, 30},  //sunday on times, hour, minute
-  {8, 30}, //sunday off times
-  {4, 5}, //mon on
-  {1, 5}, //mon off etc.
-  {3, 3}, //thu
-  {3, 3},
-  {3, 3}, //wed
-  {3, 3},
-  {3, 3}, //thu
-  {3, 3},
-  {3, 3}, //fri
-  {3, 3},
-  {3, 3}, //sat
-  {3, 3},
+  {88, 88},  //sunday on times, hour, minute
+  {0, 1}, //sunday off times
+  {8, 30}, //mon on
+  {18, 5}, //mon off etc.
+  {8, 30}, //thu
+  {18, 5},
+  {8, 30}, //wed
+  {18, 5},
+  {8, 30}, //thu
+  {18, 5},
+  {8, 30}, //fri
+  {18, 5},
+  {88, 88}, //sat
+  {0, 1},
 };
 
 //OLED
@@ -284,6 +285,8 @@ void loop() {
       secon = 88;      
     }
   }
+  //-------------------------------------------
+
 
   //timekeeping when not in sleep
   if ((millis() - updateSeconMillis) > 1000) {
@@ -291,15 +294,31 @@ void loop() {
     //Serial.print("A "); Serial.println(secon); delay(10);
     updateSeconMillis=millis();
   }
+  //-----------------------------------------
 
-  /*if (oledNeeded) {  //TODO what if in menu?
-    if (weday == autoOnOff[weday*2][]
+
+
+  //auto ON OFF  
+  if (lastAutoOnOffMinute != 100 && lastAutoOnOffMinute != minut) { //re-enable auto ON OFF
+    lastAutoOnOffMinute == 100;
+  }
+
+  //TODO what if in menu?  --> store an action, and after exiting menu ask for execution. default answer is yes
+  if (oledNeeded) {
+    if ( autoOnOff[weday*2-1][0] == houra && autoOnOff[weday*2-1][0] == minut && lastAutoOnOffMinute == 100 ) {
+      lastAutoOnOffMinute = minut;
+      turnOLED(false);
+    }
   }
   else {
-    if (weday == autoOnOff[(weday-1)*2][]
-  }*/
+    if ( autoOnOff[(weday-1)*2][0] == houra && autoOnOff[weday*2-1][0] == minut  && lastAutoOnOffMinute == 100 ) {
+      lastAutoOnOffMinute = minut;
+      turnOLED(true);
+    }
+  }
+  //--------------------------------------------
 
-  //auto ON OFF
+  
   Serial.print("A "); Serial.println(monta); delay(10);
   Serial.print("B "); Serial.println(moday); delay(10);
   Serial.print("C "); Serial.println(weday); delay(10);
@@ -813,7 +832,7 @@ void drawScreen(void) {
   */
 
 
-void blink2() {
+void beep() {
   digitalWrite(LEDPIN, HIGH); LowPower.powerDown(SLEEP_30MS, ADC_OFF, BOD_OFF);
   digitalWrite(LEDPIN, LOW); LowPower.powerDown(SLEEP_250MS, ADC_OFF, BOD_OFF);
   digitalWrite(LEDPIN, HIGH); LowPower.powerDown(SLEEP_30MS, ADC_OFF, BOD_OFF);
