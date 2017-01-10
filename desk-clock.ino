@@ -171,7 +171,7 @@ void setup() {
   //u8g
   u8g.begin(); 
   u8g.setRot180();
-  u8g.setContrast(1);
+  u8g.setContrast(0);
   
   
   Serial.begin(115200);
@@ -206,6 +206,7 @@ void loop() {
         digitalWrite(enableOledPin, LOW);
         digitalWrite(enableClockPin, LOW); //needed before the u8g.begin, warningDisplay will turn it off
         u8g.begin(); //prepare display
+        u8g.setContrast(0);
         printWarningDisplay("Battery was low", SLEEP_2S); //bit longer time to the user to read the display
         //depends on the new voltage we will shutdown again or stay alive and exit the while
       }
@@ -572,6 +573,7 @@ void turnOLED(boolean desStatus) {
     digitalWrite(enableOledPin, LOW);    
     digitalWrite(enableClockPin, LOW); //needed before the u8g.begin, UpdateDisplay will turn it off
     u8g.begin();
+    u8g.setContrast(0);
     UpdateDisplay(); //its needed because values which trigger the update may have not changed.
   }
   else {
@@ -915,12 +917,14 @@ with arduino and clock powered off --> 3.3 mA
 
 3,60V on the display, with small numbers --> 7.5 mA
 with arduino and clock powered off --> 3.3 mA
+with smallest contrast/brigthness --> 
 
 23.4oC 42,6% and with big BOLD 16:52 on the display --> 17 mA
-with arduino and clock powered off --> 12,9 mA
+with arduino and clock powered off --> 12.9 mA
 
 xx.xoC xx,x% and with big xx:xx on the display --> 
 with arduino and clock powered off --> 10 mA
+with smallest contrast/brigthness --> 
 
 13,35mA
 
