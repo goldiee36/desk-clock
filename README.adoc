@@ -27,7 +27,7 @@
 .Features in software version v0.35
 * auto on-off: currently active, the screen turns on at every workday at 8:30 at turns off at 18:00
 * button 1 short press put device in sleep --> almost no power consumption (~11 uA)
-* power off automatically if the battery reading is below 3.5V (power on with the left or the middle button)
+* power off automatically if the battery reading is below 3.4V (power on with the left or the middle button)
 * change screen with short press of the middle button --> show temperature, humidity, time and battery voltage with different layouts (easy to configurable in the arduino code)
 * on-time is up to 300 hours --> depends on the ammount of data (pixels) the screen have to display (700mA battery and only one data - like the time - on the screen with small numbers)
 * on-time with 1 big data (like time) and two small (like temperature and humidity) is more then 100 hours. It is ~2 weeks with the auto on-off feature set to display only 8-9 on a workday
