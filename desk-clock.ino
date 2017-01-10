@@ -120,15 +120,16 @@ unsigned int sleepCounter = 0;
 
 
 //SCREENS - WHAT TYPE WHICH POSITION
-byte numberOfScreens = 5; //TODO use sizeof array
 byte currentScreen = 0; //starts from 0
 byte scProps[][12] = { //TODO sanity check if displays are not covering each other
   {4, 11, 1, 7, 2, 9, 0, 0, 0, 0, 0, 0},  //this is one screen, with 6 possibilites of data printed. what-where, 1-1 means temperature to position 1; 2-9 means humidity to position 9 etc.
   {1, 1, 2, 3, 4, 8, 0, 0, 0, 0, 0, 0},
-  {4, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
   {1, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
-  {3, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+  {3, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+  //{99, 99, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 };
+byte numberOfScreens = sizeof(scProps)/sizeof(scProps[0]);
+
 byte autoOnOff[][2] = {
   {88, 88},  //sunday on times, hour, minute
   {0, 1}, //sunday off times
@@ -149,6 +150,7 @@ byte autoOnOff[][2] = {
 //OLED
 boolean oledNeeded = true;
 boolean forceUpdateDisplay = false;
+#define CONTRAST 0
 
 
 void setup() {
@@ -171,7 +173,7 @@ void setup() {
   //u8g
   u8g.begin(); 
   u8g.setRot180();
-  u8g.setContrast(1);
+  u8g.setContrast(CONTRAST);
   
   
   Serial.begin(115200);
@@ -206,11 +208,12 @@ void loop() {
         digitalWrite(enableOledPin, LOW);
         digitalWrite(enableClockPin, LOW); //needed before the u8g.begin, warningDisplay will turn it off
         u8g.begin(); //prepare display
+        u8g.setContrast(CONTRAST);
         printWarningDisplay("Battery was low", SLEEP_2S); //bit longer time to the user to read the display
         //depends on the new voltage we will shutdown again or stay alive and exit the while
       }
   
-      if (volta < 3.5 ) {
+      if (volta < 3.4 ) {
         if (volta < 3) //shut down immediately
           lowVoltageCounter = 250;
         else
@@ -572,6 +575,7 @@ void turnOLED(boolean desStatus) {
     digitalWrite(enableOledPin, LOW);    
     digitalWrite(enableClockPin, LOW); //needed before the u8g.begin, UpdateDisplay will turn it off
     u8g.begin();
+    u8g.setContrast(CONTRAST);
     UpdateDisplay(); //its needed because values which trigger the update may have not changed.
   }
   else {
@@ -760,6 +764,13 @@ void drawScreen(void) {
       case 4:
         drawTime(scProps[currentScreen][i+1], houra, minut);
         break;
+      case 99:
+        char unitStr[3] = " C";
+        unitStr[0] = 176;
+        drawFloatUnit(7, 22.3, unitStr);
+        drawTime(11, 15, 46);
+        drawFloatUnit(9, 52.6, "%");
+        break;
     }
   }
 }
@@ -913,14 +924,16 @@ with arduino powered off --> 4 mA
 with arduino and clock powered off --> 3.3 mA
 
 
-3,60V on the display, with small numbers --> 7.5 mA
-with arduino and clock powered off --> 3.3 mA
+3,46V on the display, with small numbers --> 6.5-7.5 mA
+with arduino and clock powered off --> 3.6 mA
+low bright: 2.45
 
 23.4oC 42,6% and with big BOLD 16:52 on the display --> 17 mA
 with arduino and clock powered off --> 12,9 mA
 
-xx.xoC xx,x% and with big xx:xx on the display --> 
-with arduino and clock powered off --> 10 mA
+test display: 22.3oC 52.6% and with big 15:46 on the display --> 15mA
+with arduino and clock powered off --> 11mA
+low bright: 6 mA
 
 13,35mA
 
