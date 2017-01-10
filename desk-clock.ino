@@ -133,15 +133,15 @@ byte autoOnOff[][2] = {
   {88, 88},  //sunday on times, hour, minute
   {0, 1}, //sunday off times
   {8, 30}, //mon on
-  {18, 5}, //mon off etc.
+  {18, 0}, //mon off etc.
   {8, 30}, //thu
-  {18, 5},
+  {18, 0},
   {8, 30}, //wed
-  {18, 5},
+  {18, 0},
   {8, 30}, //thu
-  {18, 5},
+  {18, 0},
   {8, 30}, //fri
-  {18, 5},
+  {18, 0},
   {88, 88}, //sat
   {0, 1},
 };
@@ -171,6 +171,8 @@ void setup() {
   //u8g
   u8g.begin(); 
   u8g.setRot180();
+  u8g.setContrast(1);
+  
   
   Serial.begin(115200);
 
@@ -215,7 +217,6 @@ void loop() {
           lowVoltageCounter = lowVoltageCounter < 250 ? lowVoltageCounter + 1 : lowVoltageCounter; //only increase the counter if value less then 250
 
         if (lowVoltageCounter > 3) { //we need three measurement under 3.5 V OR one measurement under 3V to shut down
-          if (oledNeeded) Serial.println("oled"); delay(10);   
           //OLED warning - include some sleep time for the user to read the display - but probably wont notice here at that point
           if (shutDownHappened) printWarningDisplay("Batt. still low!", SLEEP_2S);
           else printWarningDisplay("Battery low!", SLEEP_1S);
@@ -298,31 +299,28 @@ void loop() {
 
 
 
-  //auto ON OFF  
+  //auto ON OFF
   if (lastAutoOnOffMinute != 100 && lastAutoOnOffMinute != minut) { //re-enable auto ON OFF
-    lastAutoOnOffMinute == 100;
+    lastAutoOnOffMinute = 100;
+    //Serial.println("RESET"); delay(10);
   }
 
   //TODO what if in menu?  --> store an action, and after exiting menu ask for execution. default answer is yes
   if (oledNeeded) {
-    if ( autoOnOff[weday*2-1][0] == houra && autoOnOff[weday*2-1][0] == minut && lastAutoOnOffMinute == 100 ) {
+    if ( autoOnOff[weday*2-1][0] == houra && autoOnOff[weday*2-1][1] == minut && lastAutoOnOffMinute == 100 ) {
       lastAutoOnOffMinute = minut;
+      //Serial.println("OFF"); delay(10);
       turnOLED(false);
     }
   }
   else {
-    if ( autoOnOff[(weday-1)*2][0] == houra && autoOnOff[weday*2-1][0] == minut  && lastAutoOnOffMinute == 100 ) {
+    if ( autoOnOff[(weday-1)*2][0] == houra && autoOnOff[(weday-1)*2][1] == minut  && lastAutoOnOffMinute == 100 ) {
       lastAutoOnOffMinute = minut;
-      turnOLED(true);
+      //Serial.println("ON"); delay(10);
+      turnOLED(true);   
     }
   }
   //--------------------------------------------
-
-  
-  Serial.print("A "); Serial.println(monta); delay(10);
-  Serial.print("B "); Serial.println(moday); delay(10);
-  Serial.print("C "); Serial.println(weday); delay(10);
-  Serial.print("D "); Serial.println(minut); delay(10);
 
   // --------------------------- TIME
 
@@ -918,8 +916,11 @@ with arduino and clock powered off --> 3.3 mA
 3,60V on the display, with small numbers --> 7.5 mA
 with arduino and clock powered off --> 3.3 mA
 
-23.4oC 42,6% and with big 16:52 on the display --> 17 mA
+23.4oC 42,6% and with big BOLD 16:52 on the display --> 17 mA
 with arduino and clock powered off --> 12,9 mA
+
+xx.xoC xx,x% and with big xx:xx on the display --> 
+with arduino and clock powered off --> 10 mA
 
 13,35mA
 
