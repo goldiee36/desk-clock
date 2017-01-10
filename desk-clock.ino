@@ -174,6 +174,7 @@ void setup() {
   u8g.begin(); 
   u8g.setRot180();
   u8g.setContrast(CONTRAST);
+
   
   
   Serial.begin(115200);
@@ -928,12 +929,15 @@ with arduino and clock powered off --> 3.3 mA
 with arduino and clock powered off --> 3.6 mA
 low bright: 2.45
 
+
 23.4oC 42,6% and with big BOLD 16:52 on the display --> 17 mA
-with arduino and clock powered off --> 12,9 mA
+with arduino and clock powered off --> 12.9 mA
+
 
 test display: 22.3oC 52.6% and with big 15:46 on the display --> 15mA
 with arduino and clock powered off --> 11mA
 low bright: 6 mA
+
 
 13,35mA
 
