@@ -123,8 +123,7 @@ unsigned int sleepCounter = 0;
 byte currentScreen = 0; //starts from 0
 byte scProps[][12] = { //TODO sanity check if displays are not covering each other
   {4, 11, 1, 7, 2, 9, 0, 0, 0, 0, 0, 0},  //this is one screen, with 6 possibilites of data printed. what-where, 1-1 means temperature to position 1; 2-9 means humidity to position 9 etc.
-  {1, 1, 2, 3, 4, 8, 0, 0, 0, 0, 0, 0},
-  {1, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+  {4, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
   {3, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
   //{99, 99, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 };
@@ -852,9 +851,9 @@ void beep() {
 
 
 byte readTime(byte &myS, byte &myM, byte &myH, byte &myWd, byte &myMd, byte &myMo) {
-  digitalWrite(enableClockPin, LOW);
-  LowPower.powerDown(SLEEP_15MS, ADC_OFF, BOD_OFF); //clock module needs some time to wake up
+  digitalWrite(enableClockPin, LOW);  
   if (!oledNeeded) digitalWrite(enableOledPin, LOW);
+  LowPower.powerDown(SLEEP_15MS, ADC_OFF, BOD_OFF); //clock module needs some time to wake up - with enabled OLED in same cases
   byte res = readTimePure(myS, myM, myH, myWd, myMd, myMo);
   if (!oledNeeded) digitalWrite(enableOledPin, HIGH);
   digitalWrite(enableClockPin, HIGH);
