@@ -304,9 +304,10 @@ void loop() {
 
 
   //auto ON OFF
-  if (lastAutoOnOffMinute != 100 && lastAutoOnOffMinute != minut) { //re-enable auto ON OFF
-    lastAutoOnOffMinute = 100;
-    //Serial.println("RESET"); delay(10);
+  //code needed to not to run the ON or OFF code again while we are in the same minute
+  if (lastAutoOnOffMinute != 100 && lastAutoOnOffMinute != minut) { 
+    lastAutoOnOffMinute = 100; //re-enable auto ON OFF
+    //Serial.println("REenable"); delay(10);
   }
 
   //TODO what if in menu?  --> store an action, and after exiting menu ask for execution. default answer is yes
