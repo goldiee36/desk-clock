@@ -212,6 +212,7 @@ void loop() {
         u8g.begin(); //prepare display
         u8g.setContrast(CONTRAST);
         printWarningDisplay("Battery was low", SLEEP_2S); //bit longer time to the user to read the display
+        //TODO: display turns off afte this - autoONOFF? dont think so
         //depends on the new voltage we will shutdown again or stay alive and exit the while
       }
   
