@@ -8,6 +8,8 @@ U8GLIB_SSD1306_128X64 u8g(U8G_I2C_OPT_DEV_0|U8G_I2C_OPT_NO_ACK|U8G_I2C_OPT_FAST)
 #include <Vcc.h>
 
 //SCREEN BASICS:
+//big numbers: u8g_font_osr35n
+//small numbers: u8g.setFont(u8g_font_timR18r
 //X: 2 small blocks: 62 + 4 + 62, or large block can take all 128 -----OR, middle small block starts at 33
 //Y: 3 small blocks: 18 + 5 + 18 + 5 + 18, or large box either: 41 + 5 + 18 or 18 + 5 + 41
 
@@ -40,7 +42,7 @@ U8GLIB_SSD1306_128X64 u8g(U8G_I2C_OPT_DEV_0|U8G_I2C_OPT_NO_ACK|U8G_I2C_OPT_FAST)
 // Measured Vcc by multimeter divided by reported Vcc
 #define VCORR 3.5/3.5;
 #define VCORRPINK 4.058/3.93;
-const float VccCorrection = VCORRPINK; //todo why float
+const float VccCorrection = VCORR; //todo save into EEPROM, change from MENU   //todo why float
 Vcc vcc(VccCorrection);
 
 
@@ -211,6 +213,7 @@ void loop() {
         u8g.begin(); //prepare display
         u8g.setContrast(CONTRAST);
         printWarningDisplay("Battery was low", SLEEP_2S); //bit longer time to the user to read the display
+        //TODO: display turns off afte this - autoONOFF? dont think so
         //depends on the new voltage we will shutdown again or stay alive and exit the while
       }
   
@@ -304,9 +307,10 @@ void loop() {
 
 
   //auto ON OFF
-  if (lastAutoOnOffMinute != 100 && lastAutoOnOffMinute != minut) { //re-enable auto ON OFF
-    lastAutoOnOffMinute = 100;
-    //Serial.println("RESET"); delay(10);
+  //code needed to not to run the ON or OFF code again while we are in the same minute
+  if (lastAutoOnOffMinute != 100 && lastAutoOnOffMinute != minut) { 
+    lastAutoOnOffMinute = 100; //re-enable auto ON OFF
+    //Serial.println("REenable"); delay(10);
   }
 
   //TODO what if in menu?  --> store an action, and after exiting menu ask for execution. default answer is yes
