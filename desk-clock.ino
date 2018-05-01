@@ -40,9 +40,10 @@ U8GLIB_SSD1306_128X64 u8g(U8G_I2C_OPT_DEV_0|U8G_I2C_OPT_NO_ACK|U8G_I2C_OPT_FAST)
 
 //vcc livingRoom
 // Measured Vcc by multimeter divided by reported Vcc
-#define VCORR 3.5/3.5;
+#define VCORRNONE 5/5;
+#define VCORRBLUE 5.06/5.02;
 #define VCORRPINK 5.06/4.89;
-const float VccCorrection = VCORRPINK; //todo save into EEPROM, change from MENU   //todo why float
+const float VccCorrection = VCORRNONE; //todo save into EEPROM, change from MENU   //todo why float
 Vcc vcc(VccCorrection);
 
 
